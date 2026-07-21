@@ -1,0 +1,146 @@
+name: callsentry
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql+asyncpg://callsentry:${POSTGRES_PASSWORD:-callsentry}@postgres:5432/callsentry
+  REDIS_URL: redis://redis:6379/0
+  OLLAMA_BASE_URL: http://ollama:11434
+  WORKER_BASE_URL: http://worker:8100
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+  PUBLIC_WS_URL: ${PUBLIC_WS_URL:-ws://pipecat:8080}
+  CALLSENTRY_LOCAL_ONLY: ${CALLSENTRY_LOCAL_ONLY:-1}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env - run "make keygen"}
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env - run "make keygen"}
+  INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env - run "make keygen"}
+  TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+  TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+  TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+  CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+  CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-5}
+  ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+  DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+  RETELL_API_KEY: ${RETELL_API_KEY:-}
+  CALCOM_API_KEY: ${CALCOM_API_KEY:-}
+  CALCOM_BASE_URL: ${CALCOM_BASE_URL:-https://api.cal.com/v1}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: callsentry
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-callsentry}
+      POSTGRES_DB: callsentry
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U callsentry -d callsentry"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollamadata:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  worker:
+    build:
+      context: ./worker
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-base.en}
+      KOKORO_VOICE: ${KOKORO_VOICE:-af_heart}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - modeldata:/models
+    ports:
+      - "${WORKER_PORT:-8100}:8100"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8100/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build:
+      context: ./app
+    environment:
+      <<: *app-env
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  pipecat:
+    build:
+      context: ./pipecat
+    environment:
+      <<: *app-env
+      APP_BASE_URL: http://app:8000
+    depends_on:
+      app: {condition: service_started}
+      worker: {condition: service_started}
+    ports:
+      - "${PIPECAT_PORT:-8080}:8080"
+
+  dashboard:
+    build:
+      context: ./dashboard
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      app: {condition: service_started}
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"
+
+  caddy:
+    image: caddy:2-alpine
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    environment:
+      CALLSENTRY_DOMAIN: ${CALLSENTRY_DOMAIN:-localhost}
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+    depends_on:
+      - app
+      - dashboard
+      - pipecat
+
+volumes:
+  pgdata:
+  redisdata:
+  ollamadata:
+  modeldata:
+  caddydata:
+  caddyconfig:

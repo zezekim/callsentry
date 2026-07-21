@@ -1,0 +1,13 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-multipart>=0.0.17
+pydantic>=2.9
+numpy>=1.26,<2.2
+
+# faster-whisper is the CTranslate2 build of Whisper: same models as
+# whisper.cpp, CPU int8 inference, no GPU required.
+faster-whisper>=1.1.0
+
+# Kokoro: 82M-param TTS, Apache-2.0, runs comfortably on CPU.
+kokoro>=0.9.2
+soundfile>=0.12.1

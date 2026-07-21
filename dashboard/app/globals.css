@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink text-slate-200 antialiased;
+  font-feature-settings: "tnum" 1;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-edge bg-panel;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-edge
+           bg-panel px-3 py-1.5 text-sm font-medium text-slate-200 transition
+           hover:border-slate-500 hover:bg-slate-800
+           disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply border-emerald-600 bg-emerald-600 text-ink hover:bg-emerald-500
+           hover:border-emerald-500;
+  }
+  .btn-danger {
+    @apply border-red-900 text-red-300 hover:border-red-600 hover:bg-red-950;
+  }
+  .input {
+    @apply w-full rounded-md border border-edge bg-ink px-3 py-2 text-sm text-slate-200
+           outline-none transition placeholder:text-slate-600
+           focus:border-emerald-600;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted;
+  }
+  .chip {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .th {
+    @apply px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted;
+  }
+  .td {
+    @apply px-4 py-3 text-sm;
+  }
+}
+
+/* Keep wide tables scrollable inside their panel instead of pushing the page. */
+.table-scroll {
+  @apply overflow-x-auto;
+}
