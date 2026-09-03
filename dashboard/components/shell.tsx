@@ -6,7 +6,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { api, clearToken, getToken } from "@/lib/api";
 
 const NAV = [
-  { href: "/", label: "Overview" },
+  { href: "/overview", label: "Overview" },
   { href: "/calls", label: "Calls" },
   { href: "/appointments", label: "Appointments" },
   { href: "/kb", label: "Knowledge base" },
@@ -33,10 +33,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
 
-  const isLogin = pathname === "/login";
+  // The showcase page and sign-in render without the authenticated frame.
+  const isPublic = pathname === "/" || pathname === "/login";
 
   useEffect(() => {
-    if (isLogin) {
+    if (isPublic) {
       setReady(true);
       return;
     }
@@ -51,9 +52,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
         /* the api client already redirects on 401 */
       })
       .finally(() => setReady(true));
-  }, [isLogin, pathname, router]);
+  }, [isPublic, pathname, router]);
 
-  if (isLogin) return <>{children}</>;
+  if (isPublic) return <>{children}</>;
   if (!ready) return <p className="p-8 text-secondary">Loading…</p>;
 
   const nav = session?.role === "operator" ? [...NAV, { href: "/admin", label: "Administration" }] : NAV;
@@ -75,7 +76,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
         <header className="border-b-[10px] border-brand bg-ink text-white">
           <div className="mx-auto flex max-w-page flex-wrap items-center justify-between gap-x-6 gap-y-2 px-6 py-3">
-            <Link href="/" className="flex items-baseline gap-3 text-white no-underline">
+            <Link href="/overview" className="flex items-baseline gap-3 text-white no-underline">
               <span className="text-xl font-bold tracking-tight">CallSentry</span>
               <span className="text-sm text-[#b1b4b6]">Receptionist administration</span>
             </Link>
@@ -96,7 +97,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <nav aria-label="Service" className="border-b border-border bg-white">
           <ul className="mx-auto flex max-w-page flex-wrap gap-x-6 px-6">
             {nav.map((item) => {
-              const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+              const active = pathname.startsWith(item.href);
               return (
                 <li key={item.href}>
                   <Link

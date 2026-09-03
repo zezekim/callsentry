@@ -1,179 +1,56 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api, type CallStats, type CallSummary, type ProviderSnapshot } from "@/lib/api";
-import {
-  ButtonLink,
-  Card,
-  Empty,
-  ErrorSummary,
-  PageHeader,
-  Spinner,
-  Stat,
-  Tag,
-  duration,
-  money,
-  when,
-} from "@/components/ui";
 
-export default function OverviewPage() {
-  const [stats, setStats] = useState<CallStats | null>(null);
-  const [recent, setRecent] = useState<CallSummary[]>([]);
-  const [providers, setProviders] = useState<ProviderSnapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
+const DEMO_NUMBER_DISPLAY = "+1 (339) 244-8277";
+const DEMO_NUMBER_TEL = "+13392448277";
 
-  useEffect(() => {
-    Promise.all([
-      api.get<CallStats>("/calls/stats"),
-      api.get<CallSummary[]>("/calls?limit=8"),
-      api.get<ProviderSnapshot>("/settings/providers"),
-    ])
-      .then(([s, r, p]) => {
-        setStats(s);
-        setRecent(r);
-        setProviders(p);
-      })
-      .catch((e) => setError(e.message));
-  }, []);
-
-  if (error) return <ErrorSummary error={error} />;
-  if (!stats) return <Spinner />;
-
-  const sentimentTotal = Object.values(stats.sentiment).reduce((a, b) => a + b, 0);
-  const degraded = providers
-    ? Object.entries(providers.components).filter(([, rows]) => !rows.some((r) => r.healthy && r.tier !== "mock"))
-    : [];
-
+export default function ShowcasePage() {
   return (
-    <div>
-      <PageHeader
-        title="Overview"
-        lede="Activity in the last 24 hours and the current state of the receptionist."
-        actions={<ButtonLink href="/calls">View call log</ButtonLink>}
-      />
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b-[10px] border-brand bg-ink text-white">
+        <div className="mx-auto flex max-w-page items-baseline justify-between px-6 py-3">
+          <span className="text-xl font-bold tracking-tight">CallSentry</span>
+          <Link href="/login" className="link text-white hover:text-white">
+            Sign in
+          </Link>
+        </div>
+      </header>
 
-      {degraded.length > 0 && (
-        <div className="banner">
-          <div className="banner-title">Service degraded</div>
-          <div className="banner-body">
-            <p>
-              {degraded.length === 1 ? "One component is" : `${degraded.length} components are`}{" "}
-              running on the placeholder provider, so callers are being handed to a person
-              for anything it cannot do.{" "}
-              <Link href="/settings/providers" className="link">
-                Check provider status
-              </Link>
-              .
+      <main className="mx-auto w-full max-w-page flex-1 px-6 py-16 sm:py-24">
+        <div className="max-w-3xl">
+          <h1 className="text-[2.75rem] font-bold leading-[1.05] tracking-tight sm:text-[3.5rem]">
+            Every call answered. Nothing slips through.
+          </h1>
+          <p className="mt-6 max-w-2xl text-xl leading-relaxed">
+            CallSentry answers the phone for your business, books appointments, and hands
+            anything it cannot resolve to a person. It runs on your own hardware.
+          </p>
+
+          <section className="mt-14 border-l-[10px] border-brand pl-6" aria-labelledby="demo">
+            <h2 id="demo" className="text-base font-bold uppercase tracking-wide text-secondary">
+              Demo
+            </h2>
+            <p className="mt-2 text-2xl leading-snug sm:text-3xl">
+              Call{" "}
+              <a href={`tel:${DEMO_NUMBER_TEL}`} className="link whitespace-nowrap font-bold tabular-nums">
+                {DEMO_NUMBER_DISPLAY}
+              </a>{" "}
+              and experience CallSentry.
             </p>
-          </div>
+          </section>
+
+          <p className="mt-14 text-lg">
+            <Link href="/login" className="link font-bold">
+              View the dashboard
+            </Link>
+          </p>
         </div>
-      )}
+      </main>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Calls in the last 24 hours" value={stats.calls_today} />
-        <Stat label="Appointments booked" value={stats.bookings_today} />
-        <Stat label="Escalated to a person" value={stats.escalations_today} />
-        <Stat label="Average call length" value={duration(Math.round(stats.avg_duration_seconds))} hint="minutes:seconds" />
-      </div>
-
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <Stat label="Cost in the last 24 hours" value={money(stats.cost_today_usd)} />
-        <Stat label="Cost to date" value={money(stats.cost_all_time_usd)} />
-        <Stat label="Processed on local hardware" value={`${stats.local_share_pct}%`} hint="share of inference not sent to a paid API" />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card title="Recent calls" className="min-w-0 lg:col-span-2" flush actions={<ButtonLink href="/calls" small>All calls</ButtonLink>}>
-          {recent.length === 0 ? (
-            <Empty
-              message="No calls have been received yet."
-              hint="Point the voice webhook for your Twilio number at /webhooks/twilio to begin."
-            />
-          ) : (
-            <div className="table-scroll">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th scope="col">Caller</th>
-                    <th scope="col">Outcome</th>
-                    <th scope="col">Sentiment</th>
-                    <th scope="col" className="num">Length</th>
-                    <th scope="col" className="num">Cost</th>
-                    <th scope="col">Received</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recent.map((call) => (
-                    <tr key={call.id}>
-                      <td>
-                        <Link href={`/calls/${call.id}`} className="link kv">
-                          {call.caller_number}
-                        </Link>
-                      </td>
-                      <td><Tag value={call.outcome} /></td>
-                      <td><Tag value={call.sentiment} /></td>
-                      <td className="num">{duration(call.duration_seconds)}</td>
-                      <td className="num">{money(call.cost_usd)}</td>
-                      <td className="text-secondary">{when(call.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-
-        <div className="min-w-0 space-y-6">
-          <Card title="Caller sentiment">
-            {sentimentTotal === 0 ? (
-              <p className="text-secondary">No analysed calls yet.</p>
-            ) : (
-              <table className="table">
-                <tbody>
-                  {(["positive", "neutral", "negative"] as const).map((key) => {
-                    const count = stats.sentiment[key] ?? 0;
-                    const pct = Math.round((count / sentimentTotal) * 100);
-                    return (
-                      <tr key={key}>
-                        <td className="capitalize">{key}</td>
-                        <td className="num">{count}</td>
-                        <td className="num text-secondary">{pct}%</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </Card>
-
-          <Card
-            title="Provider status"
-            description={providers?.local_only ? "Local-only mode" : "Cloud fallbacks enabled"}
-            actions={<ButtonLink href="/settings/providers" small>Details</ButtonLink>}
-          >
-            <ul className="divide-y divide-border">
-              {providers &&
-                Object.entries(providers.components).map(([component, rows]) => {
-                  const serving = rows.find((r) => r.healthy);
-                  return (
-                    <li key={component} className="flex items-center justify-between gap-3 py-2">
-                      <span className="shrink-0 text-sm uppercase">{component}</span>
-                      {serving ? (
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="kv truncate text-xs" title={serving.provider}>{serving.provider}</span>
-                          <Tag value={serving.tier} />
-                        </span>
-                      ) : (
-                        <span className="font-bold text-error">Unavailable</span>
-                      )}
-                    </li>
-                  );
-                })}
-            </ul>
-          </Card>
+      <footer className="border-t border-border bg-canvas">
+        <div className="mx-auto max-w-page px-6 py-6 text-sm text-secondary">
+          CallSentry · self-hosted voice receptionist
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

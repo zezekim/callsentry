@@ -19,7 +19,7 @@ export default function LoginPage() {
     try {
       const result = await api.post<{ access_token: string }>("/auth/login", { email, password });
       setToken(result.access_token);
-      router.replace("/");
+      router.replace("/overview");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
     } finally {
