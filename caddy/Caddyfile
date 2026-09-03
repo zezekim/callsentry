@@ -12,7 +12,11 @@
 		header Connection *Upgrade*
 		header Upgrade websocket
 	}
-	reverse_proxy @ws pipecat:8080
+	# handle blocks are evaluated before a bare reverse_proxy, so this must
+	# be a handle too or the dashboard catch-all below swallows the upgrade.
+	handle @ws {
+		reverse_proxy pipecat:8080
+	}
 
 	# Backend API surface.
 	handle /auth/* {
