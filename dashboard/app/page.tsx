@@ -36,6 +36,9 @@ export default function ShowcasePage() {
               </a>{" "}
               and experience CallSentry.
             </p>
+            <p className="mt-3 text-base text-secondary">
+              Ask a question, book an appointment, or give it something it can&apos;t answer.
+            </p>
           </section>
 
           <p className="mt-14 text-lg">
