@@ -57,7 +57,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
   if (isPublic) return <>{children}</>;
   if (!ready) return <p className="p-8 text-secondary">Loading…</p>;
 
-  const nav = session?.role === "operator" ? [...NAV, { href: "/admin", label: "Administration" }] : NAV;
+  const role = session?.role;
+  const nav =
+    role === "operator"
+      ? [...NAV, { href: "/admin", label: "Administration" }]
+      : role === "viewer"
+        ? NAV.filter((item) => item.href !== "/settings")
+        : NAV;
 
   function signOut() {
     clearToken();
@@ -125,11 +131,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto flex max-w-page flex-wrap items-center justify-between gap-4 px-6 py-6 text-sm text-secondary">
             <span>CallSentry · self-hosted voice receptionist</span>
             <span>
-              Calls are recorded and transcribed under your retention policy. See{" "}
-              <Link href="/settings/platform" className="link">
-                data retention
-              </Link>
-              .
+              Calls are recorded and transcribed under your retention policy.
+              {role !== "viewer" && (
+                <>
+                  {" "}
+                  See{" "}
+                  <Link href="/settings/platform" className="link">
+                    data retention
+                  </Link>
+                  .
+                </>
+              )}
             </span>
           </div>
         </footer>

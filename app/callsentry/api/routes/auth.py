@@ -8,8 +8,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from callsentry.api.deps import SessionDep, UserDep
+from callsentry.config import get_settings
 from callsentry.core.security import hash_password, issue_token, verify_password
-from callsentry.models import User
+from callsentry.models import User, UserRole
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -53,6 +54,26 @@ async def login(payload: LoginRequest, session: SessionDep) -> TokenResponse:
     if not user or not ok:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid email or password")
 
+    return TokenResponse(
+        access_token=issue_token(
+            user_id=str(user.id), business_id=str(user.business_id), role=user.role
+        ),
+        role=user.role,
+        business_id=str(user.business_id),
+    )
+
+
+@router.post("/demo", response_model=TokenResponse)
+async def demo_login(session: SessionDep) -> TokenResponse:
+    """Sign in as the configured public demo account, no password required.
+
+    Only ever issues a token for a viewer-role user, whatever the setting
+    says, so a mistyped email can't hand the public an admin session.
+    """
+    email = get_settings().demo_viewer_email.strip().lower()
+    user = await session.scalar(select(User).where(User.email == email)) if email else None
+    if user is None or user.role != UserRole.VIEWER:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "demo access is not enabled")
     return TokenResponse(
         access_token=issue_token(
             user_id=str(user.id), business_id=str(user.business_id), role=user.role

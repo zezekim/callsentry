@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Appointment } from "@/lib/api";
+import { useSession } from "@/components/shell";
 import { Card, Empty, ErrorSummary, PageHeader, Spinner, Tag } from "@/components/ui";
 
 function dayKey(iso: string, timeZone: string): string {
@@ -22,6 +23,7 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const canEdit = useSession()?.role !== "viewer";
 
   function load() {
     api
@@ -83,7 +85,7 @@ export default function AppointmentsPage() {
                       <th scope="col">Reason</th>
                       <th scope="col">Status</th>
                       <th scope="col">Calendar</th>
-                      <th scope="col"><span className="sr-only">Actions</span></th>
+                      {canEdit && <th scope="col"><span className="sr-only">Actions</span></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -106,7 +108,7 @@ export default function AppointmentsPage() {
                             <Tag value="local only" tone="tag-grey" />
                           )}
                         </td>
-                        <td className="whitespace-nowrap text-right">
+                        {canEdit && <td className="whitespace-nowrap text-right">
                           {appointment.status === "confirmed" && (
                             <>
                               <button
@@ -125,7 +127,7 @@ export default function AppointmentsPage() {
                               </button>
                             </>
                           )}
-                        </td>
+                        </td>}
                       </tr>
                     ))}
                   </tbody>

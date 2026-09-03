@@ -272,7 +272,14 @@ the environment value back.
 
 Per-business users are managed under **Settings → Users** (add, remove,
 change password); each user can change their own password under **Settings →
-Your account**.
+Your account**. Roles: **admin** (full access to the business), **viewer**
+(read-only; every write and the whole Settings area are refused server-side
+by `api/readonly.py`), and **operator** (platform staff, cross-tenant).
+
+`DEMO_VIEWER_EMAIL` names a viewer-role account that the public showcase page
+signs visitors in as with no password, so "View the dashboard" opens the
+overview directly. Leave it blank to send visitors to the sign-in page. The
+seed creates `viewer@callsentry.local` for this.
 
 ---
 

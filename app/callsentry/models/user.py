@@ -17,6 +17,9 @@ if TYPE_CHECKING:
 class UserRole(StrEnum):
     ADMIN = "admin"
     OPERATOR = "operator"
+    # Read-only. Enforced server-side in api/readonly.py, not just hidden in
+    # the dashboard - it is what the public demo signs visitors in as.
+    VIEWER = "viewer"
 
 
 class User(Base, TimestampMixin):

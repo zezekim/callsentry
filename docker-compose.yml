@@ -8,6 +8,7 @@ x-app-env: &app-env
   PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
   PUBLIC_WS_URL: ${PUBLIC_WS_URL:-ws://pipecat:8080}
   CALLSENTRY_LOCAL_ONLY: ${CALLSENTRY_LOCAL_ONLY:-1}
+  DEMO_VIEWER_EMAIL: ${DEMO_VIEWER_EMAIL:-}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env - run "make keygen"}
   JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env - run "make keygen"}
   INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env - run "make keygen"}

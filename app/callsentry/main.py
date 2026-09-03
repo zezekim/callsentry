@@ -7,12 +7,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
+import jwt
 import structlog
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from callsentry import logging as app_logging
+from callsentry.api.readonly import viewer_allowed
 from callsentry.api.routes import (
     admin,
     analytics,
@@ -29,6 +31,8 @@ from callsentry.api.routes import (
 from callsentry.config import get_settings
 from callsentry.core.db import get_sessionmaker
 from callsentry.core.providers import ProviderUnavailable, get_registry
+from callsentry.core.security import decode_token
+from callsentry.models import UserRole
 
 log = structlog.get_logger(__name__)
 
@@ -106,6 +110,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def enforce_viewer_read_only(request: Request, call_next: Any) -> Any:
+    """Reject anything a viewer-role token may not do, before any route runs."""
+    header = request.headers.get("authorization", "")
+    if header.lower().startswith("bearer "):
+        try:
+            claims = decode_token(header[7:])
+        except jwt.PyJWTError:
+            claims = None  # the route's own auth dependency reports the 401
+        if (
+            claims
+            and claims.get("role") == UserRole.VIEWER
+            and not viewer_allowed(request.method, request.url.path)
+        ):
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "this account is view-only"},
+            )
+    return await call_next(request)
 
 
 @app.exception_handler(ProviderUnavailable)

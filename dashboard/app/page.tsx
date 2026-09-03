@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DemoLink } from "@/components/demo-link";
 
 const DEMO_NUMBER_DISPLAY = "+1 (339) 244-8277";
 const DEMO_NUMBER_TEL = "+13392448277";
@@ -42,9 +43,7 @@ export default function ShowcasePage() {
           </section>
 
           <p className="mt-14 text-lg">
-            <Link href="/login" className="link font-bold">
-              View the dashboard
-            </Link>
+            <DemoLink>View the dashboard</DemoLink>
           </p>
         </div>
       </main>

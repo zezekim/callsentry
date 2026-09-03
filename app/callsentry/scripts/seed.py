@@ -23,6 +23,7 @@ log = structlog.get_logger(__name__)
 DEMO_EMAIL = "demo@callsentry.local"
 DEMO_PASSWORD = "changeme"  # noqa: S105 - local demo seed, documented in the README
 OPERATOR_EMAIL = "operator@callsentry.local"
+VIEWER_EMAIL = "viewer@callsentry.local"  # read-only; the public demo signs in as this
 
 FAQ = """# Northside Dental - Frequently Asked Questions
 
@@ -84,7 +85,11 @@ async def main() -> None:
             await session.flush()
             log.info("seed.business_created", name=business.name)
 
-        for email, role in ((DEMO_EMAIL, UserRole.ADMIN), (OPERATOR_EMAIL, UserRole.OPERATOR)):
+        for email, role in (
+            (DEMO_EMAIL, UserRole.ADMIN),
+            (OPERATOR_EMAIL, UserRole.OPERATOR),
+            (VIEWER_EMAIL, UserRole.VIEWER),
+        ):
             existing = await session.scalar(select(User).where(User.email == email))
             if existing is None:
                 session.add(
@@ -121,7 +126,8 @@ async def main() -> None:
         await session.commit()
 
     print(f"\nSeeded. Sign in at http://localhost:3000 as {DEMO_EMAIL} / {DEMO_PASSWORD}")
-    print(f"Operator (cross-tenant view): {OPERATOR_EMAIL} / {DEMO_PASSWORD}\n")
+    print(f"Operator (cross-tenant view): {OPERATOR_EMAIL} / {DEMO_PASSWORD}")
+    print(f"Viewer (read-only, public demo): {VIEWER_EMAIL} / {DEMO_PASSWORD}\n")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useSession } from "@/components/shell";
 import { PageHeader } from "@/components/ui";
 
 const SECTIONS = [
@@ -15,6 +17,16 @@ const SECTIONS = [
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const session = useSession();
+  const isViewer = session?.role === "viewer";
+
+  useEffect(() => {
+    if (isViewer) router.replace("/overview");
+  }, [isViewer, router]);
+
+  if (isViewer) return null;
+
   return (
     <div>
       <PageHeader title="Settings" lede="How the receptionist answers, who can administer it, and which services it relies on." />

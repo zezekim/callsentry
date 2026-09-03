@@ -223,6 +223,15 @@ FIELDS: tuple[FieldSpec, ...] = (
         "How long a dashboard sign-in lasts before the user must sign in again.",
     ),
     FieldSpec(
+        "demo_viewer_email",
+        "DEMO_VIEWER_EMAIL",
+        "access",
+        "Public demo account",
+        "text",
+        "Email address of a viewer-role user. The showcase page signs visitors in as this "
+        "account with no password. Leave blank to send visitors to the sign-in page instead.",
+    ),
+    FieldSpec(
         "public_base_url",
         "PUBLIC_BASE_URL",
         "urls",

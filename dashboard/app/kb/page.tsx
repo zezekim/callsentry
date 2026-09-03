@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, type KBDocument } from "@/lib/api";
-import { Card, Empty, ErrorSummary, Field, Notice, PageHeader, Spinner, Tag, when } from "@/components/ui";
+import { useSession } from "@/components/shell";
+import { Card, Empty, ErrorSummary, Field, Inset, Notice, PageHeader, Spinner, Tag, when } from "@/components/ui";
 
 interface TestResult {
   answered: boolean;
@@ -19,6 +20,7 @@ export default function KnowledgeBasePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const canEdit = useSession()?.role !== "viewer";
 
   const [question, setQuestion] = useState("What are your opening hours?");
   const [testing, setTesting] = useState(false);
@@ -90,6 +92,7 @@ export default function KnowledgeBasePage() {
             description="PDF, Word, plain text or Markdown"
             flush
             actions={
+              canEdit && (
               <>
                 <input
                   ref={fileInput}
@@ -105,6 +108,7 @@ export default function KnowledgeBasePage() {
                   {uploading ? "Indexing…" : "Upload a document"}
                 </button>
               </>
+              )
             }
           >
             {documents === null ? (
@@ -122,7 +126,7 @@ export default function KnowledgeBasePage() {
                     <th scope="col" className="num">Sections</th>
                     <th scope="col">Status</th>
                     <th scope="col">Uploaded</th>
-                    <th scope="col"><span className="sr-only">Actions</span></th>
+                    {canEdit && <th scope="col"><span className="sr-only">Actions</span></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -132,11 +136,13 @@ export default function KnowledgeBasePage() {
                       <td className="num">{doc.chunk_count}</td>
                       <td>{doc.indexed ? <Tag value="searchable" tone="tag-green" /> : <Tag value="not indexed" tone="tag-yellow" />}</td>
                       <td className="text-secondary">{when(doc.created_at)}</td>
-                      <td className="text-right">
-                        <button className="btn btn-warning btn-sm" onClick={() => remove(doc)}>
-                          Remove
-                        </button>
-                      </td>
+                      {canEdit && (
+                        <td className="text-right">
+                          <button className="btn btn-warning btn-sm" onClick={() => remove(doc)}>
+                            Remove
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -146,6 +152,12 @@ export default function KnowledgeBasePage() {
         </div>
 
         <div className="lg:col-span-2">
+          {!canEdit ? (
+            <Inset>
+              You are signed in with view-only access. Administrators can upload documents and test
+              questions here.
+            </Inset>
+          ) : (
           <Card title="Test a question" description="Runs the same retrieval a live caller triggers">
             <form onSubmit={runTest}>
               <Field label="Question" htmlFor="question">
@@ -171,6 +183,7 @@ export default function KnowledgeBasePage() {
               </div>
             )}
           </Card>
+          )}
         </div>
       </div>
     </div>

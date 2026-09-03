@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, type CallStats, type CallSummary, type ProviderSnapshot } from "@/lib/api";
+import { useSession } from "@/components/shell";
 import {
   ButtonLink,
   Card,
@@ -22,6 +23,8 @@ export default function OverviewPage() {
   const [recent, setRecent] = useState<CallSummary[]>([]);
   const [providers, setProviders] = useState<ProviderSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const session = useSession();
+  const canConfigure = session?.role !== "viewer";
 
   useEffect(() => {
     Promise.all([
@@ -60,11 +63,16 @@ export default function OverviewPage() {
             <p>
               {degraded.length === 1 ? "One component is" : `${degraded.length} components are`}{" "}
               running on the placeholder provider, so callers are being handed to a person
-              for anything it cannot do.{" "}
-              <Link href="/settings/providers" className="link">
-                Check provider status
-              </Link>
-              .
+              for anything it cannot do.
+              {canConfigure && (
+                <>
+                  {" "}
+                  <Link href="/settings/providers" className="link">
+                    Check provider status
+                  </Link>
+                  .
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -150,7 +158,7 @@ export default function OverviewPage() {
           <Card
             title="Provider status"
             description={providers?.local_only ? "Local-only mode" : "Cloud fallbacks enabled"}
-            actions={<ButtonLink href="/settings/providers" small>Details</ButtonLink>}
+            actions={canConfigure ? <ButtonLink href="/settings/providers" small>Details</ButtonLink> : undefined}
           >
             <ul className="divide-y divide-border">
               {providers &&

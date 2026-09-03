@@ -129,6 +129,7 @@ const TONES: Record<string, string> = {
   mock: "tag-yellow",
   admin: "tag-blue",
   operator: "tag-purple",
+  viewer: "tag-turquoise",
   healthy: "tag-green",
   unavailable: "tag-grey",
 };

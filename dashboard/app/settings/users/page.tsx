@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, type DashboardUser } from "@/lib/api";
 import { useSession } from "@/components/shell";
-import { Card, Empty, ErrorSummary, Field, Inset, Notice, Spinner, Tag, when } from "@/components/ui";
+import { Card, Empty, ErrorSummary, Field, Notice, Spinner, Tag, when } from "@/components/ui";
 
 const MIN_PASSWORD = 10;
 
@@ -91,7 +91,7 @@ export default function UsersPage() {
       <ErrorSummary error={error} />
       {notice && <Notice kind="success">{notice}</Notice>}
 
-      <Card title="Who can sign in" description="Everyone listed has full access to this business" flush className="mb-6">
+      <Card title="Who can sign in" description="Administrators have full access to this business; viewers can only look" flush className="mb-6">
         {users.length === 0 ? (
           <Empty message="No users." />
         ) : (
@@ -215,16 +215,17 @@ export default function UsersPage() {
               onChange={(e) => setForm({ ...form, password: e.target.value })}
             />
           </Field>
-          {session?.role === "operator" ? (
-            <Field label="Role" htmlFor="new-role" hint="Operators can also administer the platform and every business on it">
-              <select id="new-role" className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                <option value="admin">Administrator</option>
-                <option value="operator">Platform operator</option>
-              </select>
-            </Field>
-          ) : (
-            <Inset>New users are added as administrators of this business.</Inset>
-          )}
+          <Field
+            label="Role"
+            htmlFor="new-role"
+            hint="Viewers can see calls, appointments, the knowledge base and reports but cannot change anything. Administrators have full access to this business."
+          >
+            <select id="new-role" className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              <option value="admin">Administrator</option>
+              <option value="viewer">Viewer (read-only)</option>
+              {session?.role === "operator" && <option value="operator">Platform operator</option>}
+            </select>
+          </Field>
           <button className="btn" type="submit" disabled={creating}>
             {creating ? "Adding…" : "Add user"}
           </button>

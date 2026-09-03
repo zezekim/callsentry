@@ -46,6 +46,7 @@ PUBLIC_ROUTES = [
     ("post", "/auth/login"),
     ("get", "/auth/me"),
     ("post", "/auth/change-password"),
+    ("post", "/auth/demo"),
     ("get", "/calls"),
     ("get", "/calls/stats"),
     ("get", "/calls/export"),
@@ -114,3 +115,31 @@ def test_internal_route_rejects_wrong_token(client):
         headers={"X-Internal-Token": "not-the-token"},
     )
     assert response.status_code == 403
+
+
+def _viewer_token() -> str:
+    from callsentry.core.security import issue_token
+
+    return issue_token(
+        user_id="00000000-0000-0000-0000-000000000001", business_id="b", role="viewer"
+    )
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("patch", "/settings"),
+        ("get", "/settings"),
+        ("get", "/settings/users"),
+        ("put", "/settings/platform"),
+        ("post", "/kb/test"),
+        ("post", "/auth/change-password"),
+        ("get", "/admin/costs"),
+        ("patch", "/appointments/x/status"),
+    ],
+)
+def test_viewer_token_is_refused_before_any_route_runs(client, method, path):
+    # 403 from the middleware, without touching the database.
+    response = client.request(method, path, headers={"Authorization": f"Bearer {_viewer_token()}"})
+    assert response.status_code == 403
+    assert response.json()["detail"] == "this account is view-only"

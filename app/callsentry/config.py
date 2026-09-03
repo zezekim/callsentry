@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     encryption_key: str = Field(..., alias="ENCRYPTION_KEY")
     jwt_secret: str = Field(..., alias="JWT_SECRET")
     jwt_ttl_seconds: int = 60 * 60 * 12
+    # A viewer-role user the public showcase signs visitors in as. Empty
+    # disables the shortcut and the showcase links to the sign-in page.
+    demo_viewer_email: str = ""
     internal_api_token: str = Field(..., alias="INTERNAL_API_TOKEN")
 
     public_base_url: str = "http://localhost:8000"
