@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, getToken, type CallSummary } from "@/lib/api";
-import { Badge, Empty, ErrorNote, Panel, Spinner, duration, money, when } from "@/components/ui";
+import { Card, Empty, ErrorSummary, PageHeader, Spinner, Tag, duration, money, when } from "@/components/ui";
 
 const OUTCOMES = ["", "booked", "answered", "escalated", "voicemail", "abandoned"];
 const SENTIMENTS = ["", "positive", "neutral", "negative"];
@@ -38,8 +38,6 @@ export default function CallsPage() {
     const params = new URLSearchParams();
     if (outcome) params.set("outcome", outcome);
     if (sentiment) params.set("sentiment", sentiment);
-    // The download bypasses the fetch wrapper, so the token rides in the query
-    // is not an option - open a fetch and stream it into a blob instead.
     fetch(api.url(`/calls/export?${params}`), {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
@@ -56,98 +54,89 @@ export default function CallsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <ErrorNote error={error} />
-
-      <Panel
+    <div>
+      <PageHeader
         title="Call log"
-        subtitle="Click a caller number for the full transcript and provider trace"
+        lede="Every call the receptionist has handled. Select a caller number for the transcript and provider trace."
         actions={
-          <button onClick={exportCsv} className="btn px-2 py-1 text-xs">
-            Export CSV
+          <button onClick={exportCsv} className="btn btn-secondary">
+            Export as CSV
           </button>
         }
-      >
-        <div className="flex flex-wrap gap-3 border-b border-edge px-4 py-3">
+      />
+      <ErrorSummary error={error} />
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <div>
+          <label className="label" htmlFor="search">Search</label>
           <input
-            className="input max-w-xs"
-            placeholder="Search transcripts and numbers…"
+            id="search"
+            className="input"
+            placeholder="Number or words in the transcript"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <select
-            className="input max-w-[10rem]"
-            value={outcome}
-            onChange={(e) => setOutcome(e.target.value)}
-          >
+        </div>
+        <div>
+          <label className="label" htmlFor="outcome">Outcome</label>
+          <select id="outcome" className="input" value={outcome} onChange={(e) => setOutcome(e.target.value)}>
             {OUTCOMES.map((o) => (
-              <option key={o} value={o}>
-                {o || "All outcomes"}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input max-w-[10rem]"
-            value={sentiment}
-            onChange={(e) => setSentiment(e.target.value)}
-          >
-            {SENTIMENTS.map((s) => (
-              <option key={s} value={s}>
-                {s || "All sentiment"}
-              </option>
+              <option key={o} value={o}>{o ? o.replace(/_/g, " ") : "All outcomes"}</option>
             ))}
           </select>
         </div>
+        <div>
+          <label className="label" htmlFor="sentiment">Sentiment</label>
+          <select id="sentiment" className="input" value={sentiment} onChange={(e) => setSentiment(e.target.value)}>
+            {SENTIMENTS.map((s) => (
+              <option key={s} value={s}>{s || "All sentiment"}</option>
+            ))}
+          </select>
+        </div>
+      </div>
 
+      <Card flush>
         {calls === null ? (
           <Spinner />
         ) : calls.length === 0 ? (
-          <Empty message="No calls match those filters." />
+          <Empty message="No calls match these filters." />
         ) : (
           <div className="table-scroll">
-            <table className="w-full">
-              <thead className="border-b border-edge">
+            <table className="table">
+              <caption className="sr-only">Calls</caption>
+              <thead>
                 <tr>
-                  <th className="th">Caller</th>
-                  <th className="th">Outcome</th>
-                  <th className="th">Sentiment</th>
-                  <th className="th">Escalated</th>
-                  <th className="th">Length</th>
-                  <th className="th">Cost</th>
-                  <th className="th">When</th>
+                  <th scope="col">Caller</th>
+                  <th scope="col">Outcome</th>
+                  <th scope="col">Sentiment</th>
+                  <th scope="col">Escalated</th>
+                  <th scope="col" className="num">Length</th>
+                  <th scope="col" className="num">Cost</th>
+                  <th scope="col">Received</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-edge">
+              <tbody>
                 {calls.map((call) => (
-                  <tr key={call.id} className="hover:bg-slate-900/60">
-                    <td className="td">
-                      <Link href={`/calls/${call.id}`} className="font-mono hover:text-accent">
-                        {call.caller_number}
-                      </Link>
+                  <tr key={call.id}>
+                    <td>
+                      <Link href={`/calls/${call.id}`} className="link kv">{call.caller_number}</Link>
                     </td>
-                    <td className="td">
-                      <Badge value={call.outcome} />
-                    </td>
-                    <td className="td">
-                      <Badge value={call.sentiment} />
-                    </td>
-                    <td className="td">
-                      {call.escalated ? (
-                        <span className="text-warn">yes</span>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
-                    <td className="td font-mono text-muted">{duration(call.duration_seconds)}</td>
-                    <td className="td font-mono text-accent">{money(call.cost_usd)}</td>
-                    <td className="td text-muted">{when(call.created_at)}</td>
+                    <td><Tag value={call.outcome} /></td>
+                    <td><Tag value={call.sentiment} /></td>
+                    <td>{call.escalated ? "Yes" : <span className="text-secondary">No</span>}</td>
+                    <td className="num">{duration(call.duration_seconds)}</td>
+                    <td className="num">{money(call.cost_usd)}</td>
+                    <td className="text-secondary">{when(call.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </Panel>
+      </Card>
+      {calls && calls.length > 0 && (
+        <p className="mt-3 text-sm text-secondary">Showing the most recent {calls.length} calls.</p>
+      )}
     </div>
   );
 }

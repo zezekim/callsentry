@@ -3,11 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, setToken } from "@/lib/api";
-import { ErrorNote } from "@/components/ui";
+import { ErrorSummary, Field } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("demo@callsentry.local");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -17,10 +17,7 @@ export default function LoginPage() {
     setError(null);
     setBusy(true);
     try {
-      const result = await api.post<{ access_token: string }>("/auth/login", {
-        email,
-        password,
-      });
+      const result = await api.post<{ access_token: string }>("/auth/login", { email, password });
       setToken(result.access_token);
       router.replace("/");
     } catch (err) {
@@ -31,55 +28,59 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <form onSubmit={submit} className="panel w-full max-w-sm p-6">
-        <div className="mb-6 text-center">
-          <div className="text-3xl">📞</div>
-          <h1 className="mt-2 text-lg font-semibold text-slate-100">CallSentry</h1>
-          <p className="mt-1 text-xs text-muted">Every call answered. Nothing slips through.</p>
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b-[10px] border-brand bg-ink text-white">
+        <div className="mx-auto flex max-w-page items-baseline gap-3 px-6 py-3">
+          <span className="text-xl font-bold tracking-tight">CallSentry</span>
+          <span className="text-sm text-[#b1b4b6]">Receptionist administration</span>
         </div>
+      </header>
 
-        <div className="space-y-4">
-          <div>
-            <label className="label" htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              className="input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="username"
-              required
-            />
+      <main className="mx-auto w-full max-w-page flex-1 px-6 py-10">
+        <div className="max-w-md">
+          <h1 className="h1 mb-6">Sign in</h1>
+          <ErrorSummary error={error} />
+          <form onSubmit={submit} noValidate>
+            <Field label="Email address" htmlFor="email">
+              <input
+                id="email"
+                type="email"
+                className="input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
+                spellCheck={false}
+                required
+              />
+            </Field>
+            <Field label="Password" htmlFor="password">
+              <input
+                id="password"
+                type="password"
+                className="input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </Field>
+            <button type="submit" className="btn" disabled={busy}>
+              {busy ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+
+          <div className="inset mt-10 text-sm">
+            This service is for authorised staff of the business it serves. Access is logged.
+            If you have lost your password, ask an administrator to reset it from Settings.
           </div>
-          <div>
-            <label className="label" htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              className="input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-            />
-          </div>
-
-          <ErrorNote error={error} />
-
-          <button type="submit" className="btn btn-primary w-full" disabled={busy}>
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
         </div>
+      </main>
 
-        <p className="mt-6 text-center text-xs text-slate-600">
-          Seeded demo login: demo@callsentry.local / changeme
-        </p>
-      </form>
+      <footer className="border-t border-border bg-canvas">
+        <div className="mx-auto max-w-page px-6 py-6 text-sm text-secondary">
+          CallSentry · self-hosted voice receptionist
+        </div>
+      </footer>
     </div>
   );
 }

@@ -3,51 +3,252 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+}
+
+html {
+  @apply bg-canvas;
 }
 
 body {
-  @apply bg-ink text-slate-200 antialiased;
+  @apply bg-white font-sans text-[16px] leading-[1.5] text-ink antialiased;
   font-feature-settings: "tnum" 1;
 }
 
+/* One focus style everywhere: yellow field, black underline. */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 3px solid transparent;
+  background-color: #ffdd00;
+  color: #0b0c0c;
+  box-shadow:
+    0 -2px #ffdd00,
+    0 4px #0b0c0c;
+  text-decoration: none;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #ffdd00;
+  outline-offset: 0;
+  box-shadow: inset 0 0 0 2px #0b0c0c;
+}
+
 @layer components {
-  .panel {
-    @apply rounded-lg border border-edge bg-panel;
+  .link {
+    @apply text-link underline decoration-1 underline-offset-[3px] hover:text-link-hover hover:decoration-[3px];
   }
+
+  .caption {
+    @apply mb-1 block text-base font-normal text-secondary;
+  }
+
+  .h1 {
+    @apply text-[2rem] font-bold leading-tight tracking-tight;
+  }
+  .h2 {
+    @apply text-2xl font-bold leading-tight tracking-tight;
+  }
+  .h3 {
+    @apply text-lg font-bold leading-snug;
+  }
+
+  .lede {
+    @apply text-lg text-ink;
+  }
+
+  /* --- Buttons -------------------------------------------------------- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md border border-edge
-           bg-panel px-3 py-1.5 text-sm font-medium text-slate-200 transition
-           hover:border-slate-500 hover:bg-slate-800
-           disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex items-center justify-center gap-2 border-2 border-transparent bg-success
+           px-4 py-2 text-base font-bold text-white no-underline
+           shadow-[0_2px_0_#002d18] hover:bg-[#005a30] active:translate-y-[2px] active:shadow-none
+           disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0
+           disabled:active:shadow-[0_2px_0_#002d18];
   }
-  .btn-primary {
-    @apply border-emerald-600 bg-emerald-600 text-ink hover:bg-emerald-500
-           hover:border-emerald-500;
+  .btn-secondary {
+    @apply bg-canvas text-ink shadow-[0_2px_0_#929191] hover:bg-[#dbdad9]
+           disabled:active:shadow-[0_2px_0_#929191];
   }
-  .btn-danger {
-    @apply border-red-900 text-red-300 hover:border-red-600 hover:bg-red-950;
+  .btn-warning {
+    @apply bg-error text-white shadow-[0_2px_0_#55150b] hover:bg-[#aa2a16]
+           disabled:active:shadow-[0_2px_0_#55150b];
   }
-  .input {
-    @apply w-full rounded-md border border-edge bg-ink px-3 py-2 text-sm text-slate-200
-           outline-none transition placeholder:text-slate-600
-           focus:border-emerald-600;
+  .btn-sm {
+    @apply px-3 py-1 text-sm;
+  }
+
+  /* --- Forms ---------------------------------------------------------- */
+  .form-group {
+    @apply mb-6;
+  }
+  .form-group-error {
+    @apply border-l-[5px] border-error pl-4;
   }
   .label {
-    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted;
+    @apply mb-1 block text-base font-bold;
   }
-  .chip {
-    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  .hint {
+    @apply mb-2 block text-sm text-secondary;
   }
-  .th {
-    @apply px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted;
+  .error-msg {
+    @apply mb-2 block text-sm font-bold text-error;
   }
-  .td {
-    @apply px-4 py-3 text-sm;
+  .input {
+    @apply block w-full border-2 border-ink bg-white px-2 py-1.5 text-base text-ink
+           disabled:bg-canvas disabled:text-secondary;
+  }
+  .input-error {
+    @apply border-error;
+  }
+  .input-narrow {
+    @apply max-w-[12rem];
+  }
+  .input-medium {
+    @apply max-w-[24rem];
+  }
+  select.input {
+    @apply pr-8;
+  }
+  textarea.input {
+    @apply min-h-[6rem] resize-y;
+  }
+  .checkbox {
+    @apply h-6 w-6 cursor-pointer border-2 border-ink accent-ink;
+  }
+
+  /* --- Tags ----------------------------------------------------------- */
+  .tag {
+    @apply inline-block whitespace-nowrap px-2 py-0.5 text-xs font-bold uppercase leading-5 tracking-wide;
+  }
+  .tag-grey {
+    @apply bg-[#e5e6e7] text-[#383f43];
+  }
+  .tag-blue {
+    @apply bg-[#e8f1f8] text-[#0c2d4a];
+  }
+  .tag-green {
+    @apply bg-[#cce2d8] text-[#005a30];
+  }
+  .tag-yellow {
+    @apply bg-[#fff7bf] text-[#594d00];
+  }
+  .tag-red {
+    @apply bg-[#f4cdc6] text-[#2a0b06];
+  }
+  .tag-orange {
+    @apply bg-[#fcd6c3] text-[#6e3619];
+  }
+  .tag-purple {
+    @apply bg-[#efdfed] text-[#491644];
+  }
+  .tag-turquoise {
+    @apply bg-[#d4ecea] text-[#10403c];
+  }
+
+  /* --- Content blocks ------------------------------------------------- */
+  .inset {
+    @apply my-6 border-l-[10px] border-border py-2 pl-4 text-ink;
+  }
+  .warning-text {
+    @apply my-6 flex gap-3 font-bold;
+  }
+  .banner {
+    @apply mb-8 border-[5px] border-brand;
+  }
+  .banner-title {
+    @apply bg-brand px-4 py-2 text-lg font-bold text-white;
+  }
+  .banner-body {
+    @apply px-4 py-4;
+  }
+  .banner-success {
+    @apply border-success;
+  }
+  .banner-success .banner-title {
+    @apply bg-success;
+  }
+  .error-summary {
+    @apply mb-8 border-[5px] border-error p-4;
+  }
+
+  /* --- Cards, summary lists, tables ----------------------------------- */
+  .card {
+    @apply border border-border bg-white;
+  }
+  .card-header {
+    @apply flex flex-wrap items-center justify-between gap-3 border-b border-border bg-canvas px-4 py-3;
+  }
+  .card-title {
+    @apply text-base font-bold;
+  }
+  .card-body {
+    @apply px-4 py-4;
+  }
+
+  .summary-list {
+    @apply m-0 border-t border-border;
+  }
+  .summary-row {
+    @apply grid grid-cols-1 gap-1 border-b border-border py-3 sm:grid-cols-[minmax(10rem,30%)_1fr_auto] sm:gap-4;
+  }
+  .summary-key {
+    @apply font-bold;
+  }
+  .summary-value {
+    @apply break-words;
+  }
+
+  .table {
+    @apply w-full border-collapse text-left;
+  }
+  .table th {
+    @apply border-b border-border px-3 py-2 align-bottom text-sm font-bold;
+  }
+  .table td {
+    @apply border-b border-border px-3 py-2 align-top text-base;
+  }
+  .table tbody tr:hover {
+    @apply bg-canvas;
+  }
+  .table .num {
+    @apply text-right tabular-nums;
+  }
+
+  .stat {
+    @apply border-t-[5px] border-brand bg-canvas px-4 py-3;
+  }
+  .stat-value {
+    @apply text-3xl font-bold leading-none tabular-nums;
+  }
+  .stat-label {
+    @apply mt-2 text-sm text-secondary;
+  }
+
+  .subnav a {
+    @apply block border-l-4 border-transparent py-1.5 pl-3 pr-2 text-link no-underline hover:border-border hover:text-link-hover;
+  }
+  .subnav a.active {
+    @apply border-brand font-bold text-ink;
+  }
+
+  .back-link {
+    @apply mb-4 inline-block text-sm text-ink underline underline-offset-[3px];
+  }
+
+  .kv {
+    @apply font-mono text-sm;
   }
 }
 
-/* Keep wide tables scrollable inside their panel instead of pushing the page. */
+.back-link::before {
+  content: "\2039";
+  display: inline-block;
+  margin-right: 0.25rem;
+}
+
+/* Keep wide tables scrollable inside their card instead of pushing the page. */
 .table-scroll {
-  @apply overflow-x-auto;
+  overflow-x: auto;
 }

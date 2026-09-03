@@ -2,23 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { api, type Appointment } from "@/lib/api";
-import { Badge, Empty, ErrorNote, Panel, Spinner } from "@/components/ui";
+import { Card, Empty, ErrorSummary, PageHeader, Spinner, Tag } from "@/components/ui";
 
 function dayKey(iso: string, timeZone: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString("en-GB", {
     weekday: "long",
-    month: "short",
     day: "numeric",
+    month: "long",
+    year: "numeric",
     timeZone,
   });
 }
 
 function timeOf(iso: string, timeZone: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone,
-  });
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
 }
 
 export default function AppointmentsPage() {
@@ -48,10 +45,9 @@ export default function AppointmentsPage() {
     }
   }
 
-  if (error && !appointments) return <ErrorNote error={error} />;
+  if (error && !appointments) return <ErrorSummary error={error} />;
   if (!appointments) return <Spinner />;
 
-  // Group by local day so the page reads like a calendar, not a flat list.
   const grouped = appointments.reduce<Record<string, Appointment[]>>((acc, appointment) => {
     const key = dayKey(appointment.scheduled_at, appointment.timezone);
     (acc[key] ??= []).push(appointment);
@@ -59,80 +55,86 @@ export default function AppointmentsPage() {
   }, {});
 
   return (
-    <div className="space-y-4">
-      <ErrorNote error={error} />
-
-      <Panel
+    <div>
+      <PageHeader
         title="Appointments"
-        subtitle="Booked by the receptionist and synced with Cal.com"
-      >
-        {appointments.length === 0 ? (
+        lede="Bookings made by the receptionist. Where Cal.com is connected they are held in that calendar as well."
+      />
+      <ErrorSummary error={error} />
+
+      {appointments.length === 0 ? (
+        <Card>
           <Empty
-            message="No appointments booked yet."
-            hint="Connect Cal.com in Settings so the agent can check real availability."
+            message="There are no upcoming appointments."
+            hint="Connect Cal.com under Settings so the receptionist can offer real availability."
           />
-        ) : (
-          <div className="divide-y divide-edge">
-            {Object.entries(grouped).map(([day, items]) => (
-              <div key={day}>
-                <div className="bg-slate-900/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                  {day}
-                </div>
-                {items.map((appointment) => (
-                  <div
-                    key={appointment.id}
-                    className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 hover:bg-slate-900/40"
-                  >
-                    <span className="w-20 font-mono text-sm text-slate-100">
-                      {timeOf(appointment.scheduled_at, appointment.timezone)}
-                    </span>
-                    <div className="min-w-[12rem] flex-1">
-                      <div className="text-sm text-slate-200">{appointment.caller_name}</div>
-                      <div className="font-mono text-xs text-muted">
-                        {appointment.caller_phone}
-                      </div>
-                      {appointment.reason && (
-                        <div className="mt-0.5 text-xs text-muted">{appointment.reason}</div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 text-xs">
-                      <Badge value={appointment.status} />
-                      {appointment.cal_com_event_id ? (
-                        <span className="chip bg-sky-950 text-sky-300">cal.com synced</span>
-                      ) : (
-                        <span className="chip bg-amber-950 text-amber-300">local only</span>
-                      )}
-                      {appointment.confirmation_sent && (
-                        <span className="text-muted">SMS sent</span>
-                      )}
-                    </div>
-
-                    {appointment.status === "confirmed" && (
-                      <div className="flex gap-2">
-                        <button
-                          className="btn px-2 py-1 text-xs"
-                          disabled={busy === appointment.id}
-                          onClick={() => setStatus(appointment.id, "no_show")}
-                        >
-                          No-show
-                        </button>
-                        <button
-                          className="btn btn-danger px-2 py-1 text-xs"
-                          disabled={busy === appointment.id}
-                          onClick={() => setStatus(appointment.id, "cancelled")}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+        </Card>
+      ) : (
+        <div className="space-y-8">
+          {Object.entries(grouped).map(([day, items]) => (
+            <section key={day}>
+              <h2 className="h2 mb-3">{day}</h2>
+              <div className="table-scroll card">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th scope="col" className="w-20">Time</th>
+                      <th scope="col">Caller</th>
+                      <th scope="col">Reason</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Calendar</th>
+                      <th scope="col"><span className="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((appointment) => (
+                      <tr key={appointment.id}>
+                        <td className="tabular-nums">{timeOf(appointment.scheduled_at, appointment.timezone)}</td>
+                        <td>
+                          <div className="font-bold">{appointment.caller_name}</div>
+                          <div className="kv text-secondary">{appointment.caller_phone}</div>
+                          {appointment.confirmation_sent && (
+                            <div className="text-xs text-secondary">Confirmation SMS sent</div>
+                          )}
+                        </td>
+                        <td>{appointment.reason ?? <span className="text-secondary">Not given</span>}</td>
+                        <td><Tag value={appointment.status} /></td>
+                        <td>
+                          {appointment.cal_com_event_id ? (
+                            <Tag value="in Cal.com" tone="tag-blue" />
+                          ) : (
+                            <Tag value="local only" tone="tag-grey" />
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap text-right">
+                          {appointment.status === "confirmed" && (
+                            <>
+                              <button
+                                className="btn btn-secondary btn-sm mr-2"
+                                disabled={busy === appointment.id}
+                                onClick={() => setStatus(appointment.id, "no_show")}
+                              >
+                                Mark no-show
+                              </button>
+                              <button
+                                className="btn btn-warning btn-sm"
+                                disabled={busy === appointment.id}
+                                onClick={() => setStatus(appointment.id, "cancelled")}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
-        )}
-      </Panel>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

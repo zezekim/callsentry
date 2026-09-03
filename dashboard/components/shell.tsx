@@ -2,24 +2,36 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { api, clearToken, getToken } from "@/lib/api";
 
 const NAV = [
   { href: "/", label: "Overview" },
   { href: "/calls", label: "Calls" },
   { href: "/appointments", label: "Appointments" },
-  { href: "/kb", label: "Knowledge Base" },
-  { href: "/analytics", label: "Analytics" },
+  { href: "/kb", label: "Knowledge base" },
+  { href: "/analytics", label: "Reports" },
   { href: "/settings", label: "Settings" },
 ];
+
+export interface Session {
+  id: string;
+  email: string;
+  role: string;
+  business_id: string;
+}
+
+const SessionContext = createContext<Session | null>(null);
+
+export function useSession(): Session | null {
+  return useContext(SessionContext);
+}
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [email, setEmail] = useState<string>("");
-  const [role, setRole] = useState<string>("");
+  const [session, setSession] = useState<Session | null>(null);
 
   const isLogin = pathname === "/login";
 
@@ -33,11 +45,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
       return;
     }
     api
-      .get<{ email: string; role: string }>("/auth/me")
-      .then((me) => {
-        setEmail(me.email);
-        setRole(me.role);
-      })
+      .get<Session>("/auth/me")
+      .then(setSession)
       .catch(() => {
         /* the api client already redirects on 401 */
       })
@@ -45,9 +54,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }, [isLogin, pathname, router]);
 
   if (isLogin) return <>{children}</>;
-  if (!ready) return <div className="p-8 text-sm text-muted">Loading…</div>;
+  if (!ready) return <p className="p-8 text-secondary">Loading…</p>;
 
-  const nav = role === "operator" ? [...NAV, { href: "/admin", label: "Admin" }] : NAV;
+  const nav = session?.role === "operator" ? [...NAV, { href: "/admin", label: "Administration" }] : NAV;
 
   function signOut() {
     clearToken();
@@ -55,44 +64,75 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-edge bg-ink/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-lg">📞</span>
-            <span className="font-semibold tracking-tight text-slate-100">CallSentry</span>
-          </Link>
+    <SessionContext.Provider value={session}>
+      <div className="flex min-h-screen flex-col">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-0 focus:top-0 focus:z-20 focus:bg-focus focus:px-4 focus:py-2 focus:font-bold"
+        >
+          Skip to main content
+        </a>
 
-          <nav className="flex flex-wrap gap-1 text-sm">
+        <header className="border-b-[10px] border-brand bg-ink text-white">
+          <div className="mx-auto flex max-w-page flex-wrap items-center justify-between gap-x-6 gap-y-2 px-6 py-3">
+            <Link href="/" className="flex items-baseline gap-3 text-white no-underline">
+              <span className="text-xl font-bold tracking-tight">CallSentry</span>
+              <span className="text-sm text-[#b1b4b6]">Receptionist administration</span>
+            </Link>
+            <div className="flex items-center gap-4 text-sm">
+              {session && (
+                <span className="hidden sm:inline">
+                  {session.email}
+                  <span className="ml-2 text-[#b1b4b6]">({session.role})</span>
+                </span>
+              )}
+              <button onClick={signOut} className="link text-white hover:text-white">
+                Sign out
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <nav aria-label="Service" className="border-b border-border bg-white">
+          <ul className="mx-auto flex max-w-page flex-wrap gap-x-6 px-6">
             {nav.map((item) => {
-              const active =
-                item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+              const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`rounded-md px-2.5 py-1.5 transition ${
-                    active
-                      ? "bg-slate-800 text-slate-100"
-                      : "text-muted hover:bg-slate-900 hover:text-slate-200"
-                  }`}
-                >
-                  {item.label}
-                </Link>
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={`-mb-px block border-b-4 py-3 text-base no-underline ${
+                      active
+                        ? "border-brand font-bold text-ink"
+                        : "border-transparent text-link hover:border-border hover:text-link-hover"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
               );
             })}
-          </nav>
+          </ul>
+        </nav>
 
-          <div className="ml-auto flex items-center gap-3 text-xs text-muted">
-            <span className="hidden sm:inline">{email}</span>
-            <button onClick={signOut} className="btn px-2 py-1 text-xs">
-              Sign out
-            </button>
+        <main id="main" className="mx-auto w-full max-w-page flex-1 px-6 py-8">
+          {children}
+        </main>
+
+        <footer className="border-t border-border bg-canvas">
+          <div className="mx-auto flex max-w-page flex-wrap items-center justify-between gap-4 px-6 py-6 text-sm text-secondary">
+            <span>CallSentry · self-hosted voice receptionist</span>
+            <span>
+              Calls are recorded and transcribed under your retention policy. See{" "}
+              <Link href="/settings/platform" className="link">
+                data retention
+              </Link>
+              .
+            </span>
           </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
-    </div>
+        </footer>
+      </div>
+    </SessionContext.Provider>
   );
 }

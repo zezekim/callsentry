@@ -74,6 +74,8 @@ export const api = {
     request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
   patch: <T,>(path: string, body: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
+  put: <T,>(path: string, body: unknown) =>
+    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   delete: <T,>(path: string) => request<T>(path, { method: "DELETE" }),
   upload: <T,>(path: string, file: File) => {
     const form = new FormData();
@@ -201,4 +203,33 @@ export interface Analytics {
   avg_cost_per_call_usd: number;
   cost_by_category: Record<string, Record<string, number>>;
   top_topics: { topic: string; count: number }[];
+}
+
+export interface DashboardUser {
+  id: string;
+  email: string;
+  role: string;
+  created_at: string;
+  is_current_user: boolean;
+}
+
+export interface PlatformField {
+  key: string;
+  env: string;
+  group: string;
+  label: string;
+  kind: "text" | "secret" | "bool" | "int" | "float" | "url";
+  help: string;
+  restart_required: boolean;
+  value: string;
+  is_set: boolean;
+  overridden: boolean;
+  env_value: string;
+  updated_at: string | null;
+}
+
+export interface PlatformSettings {
+  can_edit: boolean;
+  groups: { id: string; label: string }[];
+  fields: PlatformField[];
 }

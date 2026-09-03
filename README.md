@@ -262,6 +262,18 @@ See `.env.example`. The essentials:
 | `INTERNAL_API_TOKEN` | Guards `/internal/*`, used by the voice container |
 | `KB_CONFIDENCE_THRESHOLD` | Below this, escalate instead of answering |
 
+The environment is the baseline. Everything except the boot-time infrastructure
+(database and Redis URLs, `ENCRYPTION_KEY`, `JWT_SECRET`, `INTERNAL_API_TOKEN`)
+can also be changed from the dashboard under **Settings → Platform
+configuration** by a user with the operator role. Those overrides are stored
+in the `platform_settings` table (secrets encrypted), applied to the running
+service immediately, and re-applied on every boot. Clearing an override puts
+the environment value back.
+
+Per-business users are managed under **Settings → Users** (add, remove,
+change password); each user can change their own password under **Settings →
+Your account**.
+
 ---
 
 ## Known limitations

@@ -2,13 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { api, type CallStats, type CallSummary, type ProviderSnapshot } from "@/lib/api";
 import {
-  api,
-  type CallStats,
-  type CallSummary,
-  type ProviderSnapshot,
-} from "@/lib/api";
-import { Badge, Empty, ErrorNote, Panel, Spinner, Stat, duration, money, when } from "@/components/ui";
+  ButtonLink,
+  Card,
+  Empty,
+  ErrorSummary,
+  PageHeader,
+  Spinner,
+  Stat,
+  Tag,
+  duration,
+  money,
+  when,
+} from "@/components/ui";
 
 export default function OverviewPage() {
   const [stats, setStats] = useState<CallStats | null>(null);
@@ -30,160 +37,141 @@ export default function OverviewPage() {
       .catch((e) => setError(e.message));
   }, []);
 
-  if (error) return <ErrorNote error={error} />;
+  if (error) return <ErrorSummary error={error} />;
   if (!stats) return <Spinner />;
 
   const sentimentTotal = Object.values(stats.sentiment).reduce((a, b) => a + b, 0);
+  const degraded = providers
+    ? Object.entries(providers.components).filter(([, rows]) => !rows.some((r) => r.healthy && r.tier !== "mock"))
+    : [];
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Calls (24h)" value={stats.calls_today} />
-        <Stat label="Bookings (24h)" value={stats.bookings_today} tone="good" />
-        <Stat
-          label="Escalations (24h)"
-          value={stats.escalations_today}
-          tone={stats.escalations_today > 0 ? "warn" : "default"}
-        />
-        <Stat
-          label="Avg duration"
-          value={duration(Math.round(stats.avg_duration_seconds))}
-          hint="minutes:seconds"
-        />
+    <div>
+      <PageHeader
+        title="Overview"
+        lede="Activity in the last 24 hours and the current state of the receptionist."
+        actions={<ButtonLink href="/calls">View call log</ButtonLink>}
+      />
+
+      {degraded.length > 0 && (
+        <div className="banner">
+          <div className="banner-title">Service degraded</div>
+          <div className="banner-body">
+            <p>
+              {degraded.length === 1 ? "One component is" : `${degraded.length} components are`}{" "}
+              running on the placeholder provider, so callers are being handed to a person
+              for anything it cannot do.{" "}
+              <Link href="/settings/providers" className="link">
+                Check provider status
+              </Link>
+              .
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Calls in the last 24 hours" value={stats.calls_today} />
+        <Stat label="Appointments booked" value={stats.bookings_today} />
+        <Stat label="Escalated to a person" value={stats.escalations_today} />
+        <Stat label="Average call length" value={duration(Math.round(stats.avg_duration_seconds))} hint="minutes:seconds" />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Stat
-          label="Cost (24h)"
-          value={money(stats.cost_today_usd)}
-          tone="good"
-          hint="telephony is the only paid component"
-        />
-        <Stat label="Cost (all time)" value={money(stats.cost_all_time_usd)} tone="good" />
-        <Stat
-          label="Served locally"
-          value={`${stats.local_share_pct}%`}
-          tone={stats.local_share_pct > 90 ? "good" : "warn"}
-          hint="share of inference done on your hardware"
-        />
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+        <Stat label="Cost in the last 24 hours" value={money(stats.cost_today_usd)} />
+        <Stat label="Cost to date" value={money(stats.cost_all_time_usd)} />
+        <Stat label="Processed on local hardware" value={`${stats.local_share_pct}%`} hint="share of inference not sent to a paid API" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Panel
-          title="Recent calls"
-          className="lg:col-span-2"
-          actions={
-            <Link href="/calls" className="btn px-2 py-1 text-xs">
-              View all
-            </Link>
-          }
-        >
+        <Card title="Recent calls" className="min-w-0 lg:col-span-2" flush actions={<ButtonLink href="/calls" small>All calls</ButtonLink>}>
           {recent.length === 0 ? (
             <Empty
-              message="No calls yet."
-              hint="Point your Twilio number's voice webhook at /webhooks/twilio to get started."
+              message="No calls have been received yet."
+              hint="Point the voice webhook for your Twilio number at /webhooks/twilio to begin."
             />
           ) : (
             <div className="table-scroll">
-              <table className="w-full">
-                <thead className="border-b border-edge">
+              <table className="table">
+                <thead>
                   <tr>
-                    <th className="th">Caller</th>
-                    <th className="th">Outcome</th>
-                    <th className="th">Sentiment</th>
-                    <th className="th">Length</th>
-                    <th className="th">Cost</th>
-                    <th className="th">When</th>
+                    <th scope="col">Caller</th>
+                    <th scope="col">Outcome</th>
+                    <th scope="col">Sentiment</th>
+                    <th scope="col" className="num">Length</th>
+                    <th scope="col" className="num">Cost</th>
+                    <th scope="col">Received</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-edge">
+                <tbody>
                   {recent.map((call) => (
-                    <tr key={call.id} className="hover:bg-slate-900/60">
-                      <td className="td">
-                        <Link href={`/calls/${call.id}`} className="font-mono hover:text-accent">
+                    <tr key={call.id}>
+                      <td>
+                        <Link href={`/calls/${call.id}`} className="link kv">
                           {call.caller_number}
                         </Link>
                       </td>
-                      <td className="td">
-                        <Badge value={call.outcome} />
-                      </td>
-                      <td className="td">
-                        <Badge value={call.sentiment} />
-                      </td>
-                      <td className="td font-mono text-muted">
-                        {duration(call.duration_seconds)}
-                      </td>
-                      <td className="td font-mono text-accent">{money(call.cost_usd)}</td>
-                      <td className="td text-muted">{when(call.created_at)}</td>
+                      <td><Tag value={call.outcome} /></td>
+                      <td><Tag value={call.sentiment} /></td>
+                      <td className="num">{duration(call.duration_seconds)}</td>
+                      <td className="num">{money(call.cost_usd)}</td>
+                      <td className="text-secondary">{when(call.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </Panel>
+        </Card>
 
-        <div className="space-y-6">
-          <Panel title="Sentiment">
+        <div className="min-w-0 space-y-6">
+          <Card title="Caller sentiment">
             {sentimentTotal === 0 ? (
-              <Empty message="No analysed calls yet." />
+              <p className="text-secondary">No analysed calls yet.</p>
             ) : (
-              <div className="space-y-3 p-4">
-                {(["positive", "neutral", "negative"] as const).map((key) => {
-                  const count = stats.sentiment[key] ?? 0;
-                  const pct = Math.round((count / sentimentTotal) * 100);
-                  const bar = {
-                    positive: "bg-emerald-500",
-                    neutral: "bg-slate-500",
-                    negative: "bg-red-500",
-                  }[key];
-                  return (
-                    <div key={key}>
-                      <div className="mb-1 flex justify-between text-xs">
-                        <span className="capitalize text-muted">{key}</span>
-                        <span className="font-mono">
-                          {count} ({pct}%)
-                        </span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
-                        <div className={`h-full ${bar}`} style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <table className="table">
+                <tbody>
+                  {(["positive", "neutral", "negative"] as const).map((key) => {
+                    const count = stats.sentiment[key] ?? 0;
+                    const pct = Math.round((count / sentimentTotal) * 100);
+                    return (
+                      <tr key={key}>
+                        <td className="capitalize">{key}</td>
+                        <td className="num">{count}</td>
+                        <td className="num text-secondary">{pct}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
-          </Panel>
+          </Card>
 
-          <Panel
-            title="System health"
-            subtitle={providers?.local_only ? "Local-only mode" : "Cloud fallbacks enabled"}
-            actions={
-              <Link href="/settings/providers" className="btn px-2 py-1 text-xs">
-                Details
-              </Link>
-            }
+          <Card
+            title="Provider status"
+            description={providers?.local_only ? "Local-only mode" : "Cloud fallbacks enabled"}
+            actions={<ButtonLink href="/settings/providers" small>Details</ButtonLink>}
           >
-            <div className="space-y-2 p-4">
+            <ul className="divide-y divide-border">
               {providers &&
                 Object.entries(providers.components).map(([component, rows]) => {
                   const serving = rows.find((r) => r.healthy);
                   return (
-                    <div key={component} className="flex items-center justify-between text-xs">
-                      <span className="uppercase tracking-wide text-muted">{component}</span>
+                    <li key={component} className="flex items-center justify-between gap-3 py-2">
+                      <span className="shrink-0 text-sm uppercase">{component}</span>
                       {serving ? (
-                        <span className="flex items-center gap-1.5">
-                          <span className="font-mono text-slate-300">{serving.provider}</span>
-                          <Badge value={serving.tier} />
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="kv truncate text-xs" title={serving.provider}>{serving.provider}</span>
+                          <Tag value={serving.tier} />
                         </span>
                       ) : (
-                        <span className="text-danger">unavailable</span>
+                        <span className="font-bold text-error">Unavailable</span>
                       )}
-                    </div>
+                    </li>
                   );
                 })}
-            </div>
-          </Panel>
+            </ul>
+          </Card>
         </div>
       </div>
     </div>

@@ -144,20 +144,23 @@ class ProviderRegistry:
             return True, "always available"
         if spec.tier is Tier.CLOUD and spec.component is not Component.TELEPHONY:
             if s.local_only:
-                return False, "disabled by CALLSENTRY_LOCAL_ONLY=1"
+                return False, "disabled by local-only mode"
         match spec.name:
             case "deepgram":
-                return bool(s.deepgram_api_key), "DEEPGRAM_API_KEY not set"
+                return bool(s.deepgram_api_key), "Deepgram API key not set"
             case "claude":
-                return bool(s.claude_api_key), "CLAUDE_API_KEY not set"
+                return bool(s.claude_api_key), "Claude API key not set"
             case "elevenlabs":
-                return bool(s.elevenlabs_api_key), "ELEVENLABS_API_KEY not set"
+                return bool(s.elevenlabs_api_key), "ElevenLabs API key not set"
             case "openai-embed":
-                return bool(s.openai_api_key), "OPENAI_API_KEY not set"
+                return bool(s.openai_api_key), "OpenAI API key not set"
             case "twilio":
-                return bool(s.twilio_account_sid and s.twilio_auth_token), "Twilio not configured"
+                return (
+                    bool(s.twilio_account_sid and s.twilio_auth_token),
+                    "Twilio account SID and auth token not set",
+                )
             case "cal.com":
-                return bool(s.calcom_api_key), "CALCOM_API_KEY not set"
+                return bool(s.calcom_api_key), "Cal.com API key not set"
             case _:
                 return True, ""
 
@@ -188,6 +191,10 @@ class ProviderRegistry:
             return ProviderStatus(spec, healthy, f"HTTP {resp.status_code}")
         except httpx.HTTPError as exc:
             return ProviderStatus(spec, False, f"unreachable: {type(exc).__name__}")
+
+    def invalidate(self) -> None:
+        """Forget cached health so a changed key or URL is re-probed at once."""
+        self._health.clear()
 
     async def status(self, spec: ProviderSpec, *, refresh: bool = False) -> ProviderStatus:
         cached = self._health.get(spec.name)

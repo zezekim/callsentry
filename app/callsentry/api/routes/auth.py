@@ -4,7 +4,7 @@ import asyncio
 import secrets
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from callsentry.api.deps import SessionDep, UserDep
@@ -19,7 +19,9 @@ _DUMMY_HASH = hash_password(secrets.token_urlsafe(16))
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Deliberately not EmailStr: the validator rejects reserved domains such as
+    # the seeded demo@callsentry.local, and the lookup below is the real check.
+    email: str
     password: str
 
 
@@ -28,6 +30,11 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"  # noqa: S105 - OAuth scheme name, not a secret
     role: str
     business_id: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=10)
 
 
 class MeResponse(BaseModel):
@@ -66,3 +73,15 @@ async def me(user: UserDep) -> MeResponse:
     return MeResponse(
         id=str(user.id), email=user.email, role=user.role, business_id=str(user.business_id)
     )
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    payload: ChangePasswordRequest, session: SessionDep, user: UserDep
+) -> None:
+    """Change the signed-in user's own password. Requires the current one."""
+    ok = await asyncio.to_thread(verify_password, payload.current_password, user.password_hash)
+    if not ok:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "current password is incorrect")
+    user.password_hash = hash_password(payload.new_password)
+    await session.flush()

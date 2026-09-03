@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Empty, ErrorNote, Panel, Spinner, Stat, money, when } from "@/components/ui";
+import { Card, Empty, ErrorSummary, Field, Notice, PageHeader, Spinner, Stat, WarningText, money, when } from "@/components/ui";
 
 interface BusinessRow {
   id: string;
@@ -28,6 +28,8 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [confirming, setConfirming] = useState<BusinessRow | null>(null);
+  const [typed, setTyped] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -39,10 +41,7 @@ export default function AdminPage() {
   });
 
   function load() {
-    Promise.all([
-      api.get<BusinessRow[]>("/admin/businesses"),
-      api.get<PlatformCosts>("/admin/costs"),
-    ])
+    Promise.all([api.get<BusinessRow[]>("/admin/businesses"), api.get<PlatformCosts>("/admin/costs")])
       .then(([b, c]) => {
         setBusinesses(b);
         setCosts(c);
@@ -63,7 +62,7 @@ export default function AdminPage() {
         twilio_number: form.twilio_number || null,
         escalation_phone: form.escalation_phone || null,
       });
-      setNotice(`Provisioned ${form.name}.`);
+      setNotice(`${form.name} has been set up. Its administrator can sign in with the email address given.`);
       setForm({ ...form, name: "", admin_email: "", admin_password: "", twilio_number: "" });
       load();
     } catch (e) {
@@ -74,84 +73,71 @@ export default function AdminPage() {
   }
 
   async function remove(business: BusinessRow) {
-    // Irreversible and cascading - make the operator type the name.
-    const typed = window.prompt(
-      `This permanently deletes "${business.name}" and every call, appointment, ` +
-        `document, and cost record belonging to it.\n\nType the business name to confirm:`,
-    );
-    if (typed !== business.name) return;
-
     setError(null);
     try {
       await api.delete(`/admin/businesses/${business.id}`);
-      setNotice(`Deleted ${business.name}.`);
+      setNotice(`${business.name} and all of its records have been deleted.`);
+      setConfirming(null);
+      setTyped("");
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed");
     }
   }
 
-  if (error && !businesses) return <ErrorNote error={error} />;
+  if (error && !businesses) return <ErrorSummary error={error} />;
   if (!businesses || !costs) return <Spinner />;
 
   return (
-    <div className="space-y-6">
-      <ErrorNote error={error} />
-      {notice && (
-        <div className="rounded-md border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300">
-          {notice}
-        </div>
-      )}
+    <div>
+      <PageHeader
+        caption="Platform operators"
+        title="Administration"
+        lede="Every business served by this installation, and what the platform as a whole has cost."
+      />
+      <ErrorSummary error={error} />
+      {notice && <Notice kind="success">{notice}</Notice>}
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="mb-8 grid gap-4 sm:grid-cols-4">
         <Stat label="Businesses" value={businesses.length} />
-        <Stat label="Platform cost" value={money(costs.total_usd)} tone="good" />
-        <Stat
-          label="Served locally"
-          value={`${costs.local_share_pct}%`}
-          tone={costs.local_share_pct > 90 ? "good" : "warn"}
-        />
-        <Stat
-          label="Cloud spend"
-          value={money(costs.by_tier.cloud ?? 0)}
-          hint="telephony plus any cloud fallbacks"
-        />
+        <Stat label="Platform cost to date" value={money(costs.total_usd)} />
+        <Stat label="Processed locally" value={`${costs.local_share_pct}%`} />
+        <Stat label="Cloud spend" value={money(costs.by_tier.cloud ?? 0)} hint="telephony plus any cloud fallbacks" />
       </div>
 
-      <Panel title="Businesses">
+      <Card title="Businesses" flush className="mb-8">
         {businesses.length === 0 ? (
-          <Empty message="No businesses provisioned." />
+          <Empty message="No businesses have been set up." />
         ) : (
           <div className="table-scroll">
-            <table className="w-full">
-              <thead className="border-b border-edge">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="th">Name</th>
-                  <th className="th">Number</th>
-                  <th className="th">Timezone</th>
-                  <th className="th">Calls</th>
-                  <th className="th">Cost</th>
-                  <th className="th">Created</th>
-                  <th className="th"></th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Number</th>
+                  <th scope="col">Time zone</th>
+                  <th scope="col" className="num">Calls</th>
+                  <th scope="col" className="num">Cost</th>
+                  <th scope="col">Created</th>
+                  <th scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-edge">
+              <tbody>
                 {businesses.map((business) => (
                   <tr key={business.id}>
-                    <td className="td text-slate-100">{business.name}</td>
-                    <td className="td font-mono text-muted">
-                      {business.twilio_number ?? "—"}
-                    </td>
-                    <td className="td text-muted">{business.timezone}</td>
-                    <td className="td font-mono">{business.call_count}</td>
-                    <td className="td font-mono text-accent">
-                      {money(business.total_cost_usd)}
-                    </td>
-                    <td className="td text-muted">{when(business.created_at)}</td>
-                    <td className="td text-right">
+                    <td className="font-bold">{business.name}</td>
+                    <td className="kv">{business.twilio_number ?? "—"}</td>
+                    <td>{business.timezone}</td>
+                    <td className="num">{business.call_count}</td>
+                    <td className="num">{money(business.total_cost_usd)}</td>
+                    <td className="text-secondary">{when(business.created_at)}</td>
+                    <td className="text-right">
                       <button
-                        className="btn btn-danger px-2 py-1 text-xs"
-                        onClick={() => remove(business)}
+                        className="btn btn-warning btn-sm"
+                        onClick={() => {
+                          setConfirming(business);
+                          setTyped("");
+                        }}
                       >
                         Delete
                       </button>
@@ -162,75 +148,55 @@ export default function AdminPage() {
             </table>
           </div>
         )}
-      </Panel>
+      </Card>
 
-      <Panel title="Provision a business" subtitle="Creates the tenant and its first admin user">
-        <form onSubmit={provision} className="grid gap-4 p-4 sm:grid-cols-2">
-          <div>
-            <label className="label">Business name</label>
-            <input
-              className="input"
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="label">Timezone</label>
-            <input
-              className="input"
-              required
-              value={form.timezone}
-              onChange={(e) => setForm({ ...form, timezone: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="label">Admin email</label>
-            <input
-              className="input"
-              type="email"
-              required
-              value={form.admin_email}
-              onChange={(e) => setForm({ ...form, admin_email: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="label">Admin password</label>
-            <input
-              className="input"
-              type="password"
-              required
-              minLength={10}
-              value={form.admin_password}
-              onChange={(e) => setForm({ ...form, admin_password: e.target.value })}
-            />
-            <p className="mt-1 text-xs text-muted">Minimum 10 characters.</p>
-          </div>
-          <div>
-            <label className="label">Twilio number (optional)</label>
-            <input
-              className="input font-mono"
-              value={form.twilio_number}
-              onChange={(e) => setForm({ ...form, twilio_number: e.target.value })}
-              placeholder="+15551234567"
-            />
-          </div>
-          <div>
-            <label className="label">Escalation phone (optional)</label>
-            <input
-              className="input font-mono"
-              value={form.escalation_phone}
-              onChange={(e) => setForm({ ...form, escalation_phone: e.target.value })}
-              placeholder="+15559876543"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <button className="btn btn-primary" type="submit" disabled={creating}>
-              {creating ? "Provisioning…" : "Provision business"}
+      {confirming && (
+        <Card title={`Delete ${confirming.name}`} className="mb-8">
+          <WarningText>
+            This permanently deletes the business and every call, appointment, document, user and cost
+            record belonging to it. It cannot be undone.
+          </WarningText>
+          <Field label="Type the business name to confirm" htmlFor="confirm-name">
+            <input id="confirm-name" className="input input-medium" value={typed} onChange={(e) => setTyped(e.target.value)} />
+          </Field>
+          <div className="flex gap-3">
+            <button className="btn btn-warning" disabled={typed !== confirming.name} onClick={() => remove(confirming)}>
+              Delete this business
+            </button>
+            <button className="btn btn-secondary" onClick={() => setConfirming(null)}>
+              Cancel
             </button>
           </div>
+        </Card>
+      )}
+
+      <Card title="Set up a new business" description="Creates the business and its first administrator">
+        <form onSubmit={provision} className="max-w-2xl">
+          <div className="grid gap-x-6 sm:grid-cols-2">
+            <Field label="Business name" htmlFor="name">
+              <input id="name" className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </Field>
+            <Field label="Time zone" htmlFor="tz" hint="IANA name, for example Europe/London">
+              <input id="tz" className="input" required value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} />
+            </Field>
+            <Field label="Administrator email" htmlFor="admin-email">
+              <input id="admin-email" className="input" type="email" required value={form.admin_email} onChange={(e) => setForm({ ...form, admin_email: e.target.value })} />
+            </Field>
+            <Field label="Administrator password" htmlFor="admin-password" hint="At least 10 characters">
+              <input id="admin-password" className="input" type="password" required minLength={10} autoComplete="new-password" value={form.admin_password} onChange={(e) => setForm({ ...form, admin_password: e.target.value })} />
+            </Field>
+            <Field label="Twilio number (optional)" htmlFor="twilio" hint="E.164 format, for example +15551234567">
+              <input id="twilio" className="input" value={form.twilio_number} onChange={(e) => setForm({ ...form, twilio_number: e.target.value })} />
+            </Field>
+            <Field label="Escalation phone (optional)" htmlFor="escalation" hint="Where calls are transferred when the receptionist cannot help">
+              <input id="escalation" className="input" value={form.escalation_phone} onChange={(e) => setForm({ ...form, escalation_phone: e.target.value })} />
+            </Field>
+          </div>
+          <button className="btn" type="submit" disabled={creating}>
+            {creating ? "Setting up…" : "Set up business"}
+          </button>
         </form>
-      </Panel>
+      </Card>
     </div>
   );
 }

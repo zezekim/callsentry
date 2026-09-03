@@ -4,7 +4,7 @@ import { Shell } from "@/components/shell";
 
 export const metadata: Metadata = {
   title: "CallSentry",
-  description: "Self-hosted, local-first AI voice receptionist",
+  description: "Receptionist administration",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

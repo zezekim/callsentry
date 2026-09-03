@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, type BusinessSettings } from "@/lib/api";
-import { ErrorNote, Panel, Spinner } from "@/components/ui";
+import { Card, ErrorSummary, Field, Notice, Spinner, WarningText } from "@/components/ui";
 
 const DAYS = [
   ["mon", "Monday"],
@@ -15,15 +14,12 @@ const DAYS = [
   ["sun", "Sunday"],
 ] as const;
 
-export default function SettingsPage() {
+export default function BusinessSettingsPage() {
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [voices, setVoices] = useState<{ id: string; label: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  const [calKey, setCalKey] = useState("");
-  const [calEventType, setCalEventType] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -33,7 +29,6 @@ export default function SettingsPage() {
       .then(([s, v]) => {
         setSettings(s);
         setVoices(v.voices);
-        setCalEventType(s.cal_com_event_type_id ?? "");
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -43,12 +38,11 @@ export default function SettingsPage() {
   }
 
   function setHours(day: string, value: [string, string] | null) {
-    setSettings((prev) =>
-      prev ? { ...prev, business_hours: { ...prev.business_hours, [day]: value } } : prev,
-    );
+    setSettings((prev) => (prev ? { ...prev, business_hours: { ...prev.business_hours, [day]: value } } : prev));
   }
 
-  async function save() {
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
     if (!settings) return;
     setSaving(true);
     setError(null);
@@ -58,14 +52,15 @@ export default function SettingsPage() {
         name: settings.name,
         timezone: settings.timezone,
         business_hours: settings.business_hours,
-        escalation_phone: settings.escalation_phone,
-        after_hours_message: settings.after_hours_message,
-        greeting_override: settings.greeting_override,
-        twilio_number: settings.twilio_number,
+        escalation_phone: settings.escalation_phone || null,
+        after_hours_message: settings.after_hours_message || null,
+        greeting_override: settings.greeting_override || null,
+        twilio_number: settings.twilio_number || null,
         voice_id: settings.voice_id,
       });
       setSettings(updated);
-      setNotice("Settings saved.");
+      setNotice("Business settings have been saved.");
+      window.scrollTo({ top: 0 });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -78,227 +73,124 @@ export default function SettingsPage() {
     setError(null);
     try {
       const blob = await api.blob("/settings/test-voice", {
-        text: "Hi, thanks for calling. I'm an AI assistant. How can I help you today?",
+        text: "Hello, thank you for calling. I am an automated assistant. How can I help you today?",
         voice: settings.voice_id,
       });
       new Audio(URL.createObjectURL(blob)).play();
     } catch {
-      setError("Voice preview failed — check that the worker service is running.");
+      setError("The voice preview failed. Check that the worker service is running.");
     }
   }
 
-  async function connectCal() {
-    setError(null);
-    setNotice(null);
-    try {
-      const result = await api.post<{ detail: string }>("/settings/connect-cal", {
-        api_key: calKey,
-        event_type_id: calEventType,
-      });
-      setNotice(result.detail);
-      setCalKey("");
-      setSettings(await api.get<BusinessSettings>("/settings"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Cal.com connection failed");
-    }
-  }
-
-  if (error && !settings) return <ErrorNote error={error} />;
+  if (error && !settings) return <ErrorSummary error={error} />;
   if (!settings) return <Spinner />;
 
   return (
-    <div className="space-y-6">
-      <ErrorNote error={error} />
-      {notice && (
-        <div className="rounded-md border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300">
-          {notice}
-        </div>
-      )}
+    <form onSubmit={save}>
+      <h2 className="h2 mb-6">Business</h2>
+      <ErrorSummary error={error} />
+      {notice && <Notice kind="success">{notice}</Notice>}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="Business">
-          <div className="space-y-4 p-4">
-            <div>
-              <label className="label">Name</label>
-              <input
-                className="input"
-                value={settings.name}
-                onChange={(e) => update("name", e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">Timezone (IANA)</label>
-              <input
-                className="input"
-                value={settings.timezone}
-                onChange={(e) => update("timezone", e.target.value)}
-                placeholder="America/New_York"
-              />
-            </div>
-            <div>
-              <label className="label">Twilio number</label>
-              <input
-                className="input font-mono"
-                value={settings.twilio_number ?? ""}
-                onChange={(e) => update("twilio_number", e.target.value)}
-                placeholder="+15551234567"
-              />
-              <p className="mt-1 text-xs text-muted">
-                Routes inbound calls to this business. Must match the number exactly.
-              </p>
-            </div>
-            <div>
-              <label className="label">Escalation phone</label>
-              <input
-                className="input font-mono"
-                value={settings.escalation_phone ?? ""}
-                onChange={(e) => update("escalation_phone", e.target.value)}
-                placeholder="+15559876543"
-              />
-              <p className="mt-1 text-xs text-muted">
-                Where warm transfers go. Without this, the agent takes a message instead.
-              </p>
-            </div>
-          </div>
-        </Panel>
+      <Card title="Details" className="mb-6">
+        <Field label="Business name" htmlFor="name" hint="Used in the greeting and in appointment confirmations">
+          <input id="name" className="input input-medium" value={settings.name} onChange={(e) => update("name", e.target.value)} />
+        </Field>
+        <Field label="Time zone" htmlFor="timezone" hint="IANA name, for example Europe/London or America/New_York">
+          <input id="timezone" className="input input-medium" value={settings.timezone} onChange={(e) => update("timezone", e.target.value)} />
+        </Field>
+        <Field label="Inbound phone number" htmlFor="twilio" hint="The Twilio number callers dial. Must match exactly, in E.164 format.">
+          <input id="twilio" className="input input-narrow kv" value={settings.twilio_number ?? ""} onChange={(e) => update("twilio_number", e.target.value)} placeholder="+15551234567" />
+        </Field>
+        <Field label="Escalation phone number" htmlFor="escalation" hint="Where calls are transferred when a person is needed. If blank, the receptionist takes a message instead.">
+          <input id="escalation" className="input input-narrow kv" value={settings.escalation_phone ?? ""} onChange={(e) => update("escalation_phone", e.target.value)} placeholder="+15559876543" />
+        </Field>
+      </Card>
 
-        <Panel title="Opening hours" subtitle="Outside these, callers get the after-hours flow">
-          <div className="space-y-2 p-4">
+      <Card title="Opening hours" description="Outside these hours callers hear the after-hours message" className="mb-6">
+        <table className="table max-w-xl">
+          <thead>
+            <tr>
+              <th scope="col">Day</th>
+              <th scope="col">Open</th>
+              <th scope="col">From</th>
+              <th scope="col">To</th>
+            </tr>
+          </thead>
+          <tbody>
             {DAYS.map(([key, label]) => {
               const window = settings.business_hours[key];
               return (
-                <div key={key} className="flex items-center gap-3">
-                  <label className="flex w-28 items-center gap-2 text-sm">
+                <tr key={key}>
+                  <td className="font-bold">
+                    <label htmlFor={`open-${key}`}>{label}</label>
+                  </td>
+                  <td>
                     <input
+                      id={`open-${key}`}
                       type="checkbox"
+                      className="checkbox"
                       checked={Boolean(window)}
-                      onChange={(e) =>
-                        setHours(key, e.target.checked ? ["09:00", "17:00"] : null)
-                      }
+                      onChange={(e) => setHours(key, e.target.checked ? ["09:00", "17:00"] : null)}
                     />
-                    {label}
-                  </label>
+                  </td>
                   {window ? (
                     <>
-                      <input
-                        type="time"
-                        className="input max-w-[7.5rem]"
-                        value={window[0]}
-                        onChange={(e) => setHours(key, [e.target.value, window[1]])}
-                      />
-                      <span className="text-muted">to</span>
-                      <input
-                        type="time"
-                        className="input max-w-[7.5rem]"
-                        value={window[1]}
-                        onChange={(e) => setHours(key, [window[0], e.target.value])}
-                      />
+                      <td>
+                        <input type="time" aria-label={`${label} opening time`} className="input input-narrow" value={window[0]} onChange={(e) => setHours(key, [e.target.value, window[1]])} />
+                      </td>
+                      <td>
+                        <input type="time" aria-label={`${label} closing time`} className="input input-narrow" value={window[1]} onChange={(e) => setHours(key, [window[0], e.target.value])} />
+                      </td>
                     </>
                   ) : (
-                    <span className="text-sm text-muted">Closed</span>
+                    <td colSpan={2} className="text-secondary">Closed</td>
                   )}
-                </div>
+                </tr>
               );
             })}
-          </div>
-        </Panel>
+          </tbody>
+        </table>
+      </Card>
 
-        <Panel title="Voice & greeting">
-          <div className="space-y-4 p-4">
-            <div>
-              <label className="label">Voice</label>
-              <div className="flex gap-2">
-                <select
-                  className="input"
-                  value={settings.voice_id}
-                  onChange={(e) => update("voice_id", e.target.value)}
-                >
-                  {voices.map((voice) => (
-                    <option key={voice.id} value={voice.id}>
-                      {voice.label}
-                    </option>
-                  ))}
-                </select>
-                <button className="btn whitespace-nowrap" onClick={previewVoice}>
-                  ▶ Preview
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="label">Greeting override</label>
-              <textarea
-                className="input min-h-[4.5rem] resize-y"
-                value={settings.greeting_override ?? ""}
-                onChange={(e) => update("greeting_override", e.target.value)}
-                placeholder="Leave blank to use the compliant default greeting."
-              />
-              <p className="mt-1 text-xs text-warn">
-                If you override this, you are responsible for keeping the AI disclosure and
-                recording notice in the opening line.
-              </p>
-            </div>
-            <div>
-              <label className="label">After-hours message</label>
-              <textarea
-                className="input min-h-[4.5rem] resize-y"
-                value={settings.after_hours_message ?? ""}
-                onChange={(e) => update("after_hours_message", e.target.value)}
-              />
-            </div>
-          </div>
-        </Panel>
-
-        <Panel
-          title="Cal.com"
-          subtitle="Credentials are verified before they're stored, then encrypted at rest"
-        >
-          <div className="space-y-4 p-4">
-            <div className="text-xs text-muted">
-              Current key: <span className="font-mono">{settings.cal_com_api_key}</span>
-            </div>
-            <div>
-              <label className="label">API key</label>
-              <input
-                className="input font-mono"
-                type="password"
-                value={calKey}
-                onChange={(e) => setCalKey(e.target.value)}
-                placeholder="cal_live_…"
-              />
-            </div>
-            <div>
-              <label className="label">Event type ID</label>
-              <input
-                className="input font-mono"
-                value={calEventType}
-                onChange={(e) => setCalEventType(e.target.value)}
-                placeholder="123456"
-              />
-            </div>
-            <button
-              className="btn"
-              onClick={connectCal}
-              disabled={!calKey || !calEventType}
-            >
-              Verify & connect
+      <Card title="Voice and greeting" className="mb-6">
+        <Field label="Voice" htmlFor="voice">
+          <div className="flex flex-wrap gap-3">
+            <select id="voice" className="input input-medium" value={settings.voice_id} onChange={(e) => update("voice_id", e.target.value)}>
+              {voices.map((voice) => (
+                <option key={voice.id} value={voice.id}>{voice.label}</option>
+              ))}
+            </select>
+            <button type="button" className="btn btn-secondary" onClick={previewVoice}>
+              Play a sample
             </button>
           </div>
-        </Panel>
-      </div>
+        </Field>
+        <Field
+          label="Greeting override"
+          htmlFor="greeting"
+          hint="Leave blank to use the standard greeting, which includes the automated-assistant disclosure and the recording notice."
+        >
+          <textarea id="greeting" className="input" value={settings.greeting_override ?? ""} onChange={(e) => update("greeting_override", e.target.value)} />
+        </Field>
+        {settings.greeting_override && (
+          <WarningText>
+            With a custom greeting you are responsible for keeping the automated-assistant disclosure and the
+            recording notice in the opening line.
+          </WarningText>
+        )}
+        <Field label="After-hours message" htmlFor="after-hours">
+          <textarea id="after-hours" className="input" value={settings.after_hours_message ?? ""} onChange={(e) => update("after_hours_message", e.target.value)} />
+        </Field>
+      </Card>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <button className="btn btn-primary" onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Save settings"}
+      <div className="flex flex-wrap items-center gap-4">
+        <button className="btn" type="submit" disabled={saving}>
+          {saving ? "Saving…" : "Save changes"}
         </button>
-        <Link href="/settings/providers" className="btn">
-          Provider health →
-        </Link>
-        <span className="text-xs text-muted">
-          {settings.local_only
-            ? "Local-only mode: no paid inference API will be called."
-            : "Cloud fallbacks enabled."}
+        <span className="text-sm text-secondary">
+          {settings.local_only ? "This installation is in local-only mode: no paid inference API is called." : "Cloud fallbacks are enabled for this installation."}
         </span>
       </div>
-    </div>
+    </form>
   );
 }

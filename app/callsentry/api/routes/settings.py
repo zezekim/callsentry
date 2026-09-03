@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import base64
+import uuid
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 
-from callsentry.api.deps import BusinessDep, SessionDep
+from callsentry.api.deps import BusinessDep, OperatorDep, SessionDep, UserDep
 from callsentry.config import get_settings
 from callsentry.core.providers import get_registry
-from callsentry.core.security import mask
+from callsentry.core.security import hash_password, mask
+from callsentry.models import User, UserRole
+from callsentry.services import platform_settings
 from callsentry.services.calcom import CalComError, CalComService
 from callsentry.services.credentials import read_credential, write_credential
 from callsentry.services.tts import get_tts
@@ -164,3 +169,154 @@ async def list_voices() -> dict[str, list[dict[str, str]]]:
 
 def _b64(data: bytes) -> str:
     return base64.b64encode(data).decode()
+
+
+# --- Users -------------------------------------------------------------------
+
+PASSWORD_MIN_LENGTH = 10
+
+
+class UserOut(BaseModel):
+    id: str
+    email: str
+    role: str
+    created_at: datetime
+    is_current_user: bool
+
+
+class CreateUserRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=PASSWORD_MIN_LENGTH)
+    role: UserRole = UserRole.ADMIN
+
+
+class SetPasswordRequest(BaseModel):
+    password: str = Field(min_length=PASSWORD_MIN_LENGTH)
+
+
+def _user_out(user: User, current: User) -> UserOut:
+    return UserOut(
+        id=str(user.id),
+        email=user.email,
+        role=user.role,
+        created_at=user.created_at,
+        is_current_user=user.id == current.id,
+    )
+
+
+def _normalise_email(email: str) -> str:
+    # Deliberately not EmailStr: it rejects reserved domains such as the seeded
+    # demo@callsentry.local, and uniqueness is enforced by the database anyway.
+    value = email.strip().lower()
+    local, _, domain = value.partition("@")
+    if not local or not domain or " " in value:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "enter a valid email address")
+    return value
+
+
+async def _business_user(session: Any, business: Any, user_id: uuid.UUID) -> User:
+    target = await session.get(User, user_id)
+    if target is None or target.business_id != business.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+    return target
+
+
+@router.get("/users", response_model=list[UserOut])
+async def list_users(session: SessionDep, business: BusinessDep, user: UserDep) -> list[UserOut]:
+    rows = await session.scalars(
+        select(User).where(User.business_id == business.id).order_by(User.created_at)
+    )
+    return [_user_out(row, user) for row in rows]
+
+
+@router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    payload: CreateUserRequest, session: SessionDep, business: BusinessDep, user: UserDep
+) -> UserOut:
+    if payload.role == UserRole.OPERATOR and user.role != UserRole.OPERATOR:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "only a platform operator can create operator accounts"
+        )
+    email = _normalise_email(payload.email)
+    if await session.scalar(select(User).where(User.email == email)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "that email address is already in use")
+
+    created = User(
+        business_id=business.id,
+        email=email,
+        password_hash=hash_password(payload.password),
+        role=payload.role,
+    )
+    session.add(created)
+    await session.flush()
+    return _user_out(created, user)
+
+
+@router.put("/users/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
+async def set_user_password(
+    user_id: uuid.UUID,
+    payload: SetPasswordRequest,
+    session: SessionDep,
+    business: BusinessDep,
+) -> None:
+    target = await _business_user(session, business, user_id)
+    target.password_hash = hash_password(payload.password)
+    await session.flush()
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: uuid.UUID, session: SessionDep, business: BusinessDep, user: UserDep
+) -> None:
+    if user_id == user.id:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "you cannot remove your own account while signed in"
+        )
+    target = await _business_user(session, business, user_id)
+    remaining = await session.scalar(
+        select(func.count(User.id)).where(User.business_id == business.id)
+    )
+    if (remaining or 0) <= 1:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "a business must keep at least one user")
+    await session.delete(target)
+    await session.flush()
+
+
+# --- Platform configuration ------------------------------------------------
+
+
+class PlatformSettingsOut(BaseModel):
+    can_edit: bool
+    groups: list[dict[str, str]]
+    fields: list[dict[str, Any]]
+
+
+class PlatformSettingsUpdate(BaseModel):
+    # key -> new value as typed. None or "" clears the override so the
+    # environment value applies again.
+    values: dict[str, str | None]
+
+
+async def _platform_out(session: Any, user: User) -> PlatformSettingsOut:
+    return PlatformSettingsOut(
+        can_edit=user.role == UserRole.OPERATOR,
+        groups=[{"id": gid, "label": label} for gid, label in platform_settings.GROUPS],
+        fields=await platform_settings.describe(session),
+    )
+
+
+@router.get("/platform", response_model=PlatformSettingsOut)
+async def read_platform_settings(session: SessionDep, user: UserDep) -> PlatformSettingsOut:
+    """Effective platform configuration. Secrets are masked; admins see, operators edit."""
+    return await _platform_out(session, user)
+
+
+@router.put("/platform", response_model=PlatformSettingsOut)
+async def update_platform_settings(
+    payload: PlatformSettingsUpdate, session: SessionDep, user: OperatorDep
+) -> PlatformSettingsOut:
+    try:
+        await platform_settings.update(session, payload.values)
+    except platform_settings.SettingsValidationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return await _platform_out(session, user)

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, type KBDocument } from "@/lib/api";
-import { Badge, Empty, ErrorNote, Panel, Spinner, when } from "@/components/ui";
+import { Card, Empty, ErrorSummary, Field, Notice, PageHeader, Spinner, Tag, when } from "@/components/ui";
 
 interface TestResult {
   answered: boolean;
@@ -39,10 +39,7 @@ export default function KnowledgeBasePage() {
     setNotice(null);
     try {
       const created = await api.upload<KBDocument & { warning?: string }>("/kb/upload", file);
-      setNotice(
-        created.warning ??
-          `Indexed ${created.filename} into ${created.chunk_count} searchable chunks.`,
-      );
+      setNotice(created.warning ?? `${created.filename} was indexed into ${created.chunk_count} searchable sections.`);
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
@@ -52,17 +49,19 @@ export default function KnowledgeBasePage() {
     }
   }
 
-  async function remove(id: string) {
+  async function remove(doc: KBDocument) {
+    if (!window.confirm(`Remove ${doc.filename} from the knowledge base? The receptionist will no longer answer from it.`)) return;
     setError(null);
     try {
-      await api.delete(`/kb/documents/${id}`);
+      await api.delete(`/kb/documents/${doc.id}`);
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed");
     }
   }
 
-  async function runTest() {
+  async function runTest(event: React.FormEvent) {
+    event.preventDefault();
     setTesting(true);
     setResult(null);
     setError(null);
@@ -76,121 +75,103 @@ export default function KnowledgeBasePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <ErrorNote error={error} />
-      {notice && (
-        <div className="rounded-md border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300">
-          {notice}
-        </div>
-      )}
+    <div>
+      <PageHeader
+        title="Knowledge base"
+        lede="The documents here are the only source of facts the receptionist may state. Anything it cannot find, it escalates."
+      />
+      <ErrorSummary error={error} />
+      {notice && <Notice kind="success">{notice}</Notice>}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel
-          title="Documents"
-          subtitle="PDF, DOCX, TXT, or Markdown — the only facts the agent may state"
-          actions={
-            <>
-              <input
-                ref={fileInput}
-                type="file"
-                accept=".pdf,.docx,.txt,.md,.markdown"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) upload(file);
-                }}
+      <div className="grid gap-6 lg:grid-cols-5">
+        <div className="lg:col-span-3">
+          <Card
+            title="Documents"
+            description="PDF, Word, plain text or Markdown"
+            flush
+            actions={
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept=".pdf,.docx,.txt,.md,.markdown"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) upload(file);
+                  }}
+                />
+                <button className="btn btn-sm" disabled={uploading} onClick={() => fileInput.current?.click()}>
+                  {uploading ? "Indexing…" : "Upload a document"}
+                </button>
+              </>
+            }
+          >
+            {documents === null ? (
+              <Spinner />
+            ) : documents.length === 0 ? (
+              <Empty
+                message="No documents have been uploaded."
+                hint="Without a knowledge base the receptionist escalates every question rather than guessing."
               />
-              <button
-                className="btn btn-primary px-2 py-1 text-xs"
-                disabled={uploading}
-                onClick={() => fileInput.current?.click()}
-              >
-                {uploading ? "Indexing…" : "Upload"}
-              </button>
-            </>
-          }
-        >
-          {documents === null ? (
-            <Spinner />
-          ) : documents.length === 0 ? (
-            <Empty
-              message="No documents yet."
-              hint="Without a knowledge base the agent will escalate every question instead of guessing."
-            />
-          ) : (
-            <div className="divide-y divide-edge">
-              {documents.map((doc) => (
-                <div key={doc.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-slate-200">{doc.filename}</div>
-                    <div className="mt-0.5 text-xs text-muted">
-                      {doc.chunk_count} chunks · {when(doc.created_at)}
-                    </div>
-                  </div>
-                  {doc.indexed ? (
-                    <span className="chip bg-emerald-950 text-emerald-300">searchable</span>
-                  ) : (
-                    <span className="chip bg-amber-950 text-amber-300">not indexed</span>
-                  )}
-                  <button
-                    className="btn btn-danger px-2 py-1 text-xs"
-                    onClick={() => remove(doc.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </Panel>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th scope="col">File</th>
+                    <th scope="col" className="num">Sections</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Uploaded</th>
+                    <th scope="col"><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documents.map((doc) => (
+                    <tr key={doc.id}>
+                      <td className="break-all font-bold">{doc.filename}</td>
+                      <td className="num">{doc.chunk_count}</td>
+                      <td>{doc.indexed ? <Tag value="searchable" tone="tag-green" /> : <Tag value="not indexed" tone="tag-yellow" />}</td>
+                      <td className="text-secondary">{when(doc.created_at)}</td>
+                      <td className="text-right">
+                        <button className="btn btn-warning btn-sm" onClick={() => remove(doc)}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
+        </div>
 
-        <Panel
-          title="Test a question"
-          subtitle="Runs the exact retrieval path a live caller hits"
-        >
-          <div className="space-y-3 p-4">
-            <textarea
-              className="input min-h-[5rem] resize-y"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Ask something a caller might ask…"
-            />
-            <button
-              className="btn btn-primary"
-              onClick={runTest}
-              disabled={testing || !question.trim()}
-            >
-              {testing ? "Thinking…" : "Ask"}
-            </button>
+        <div className="lg:col-span-2">
+          <Card title="Test a question" description="Runs the same retrieval a live caller triggers">
+            <form onSubmit={runTest}>
+              <Field label="Question" htmlFor="question">
+                <textarea id="question" className="input" value={question} onChange={(e) => setQuestion(e.target.value)} />
+              </Field>
+              <button type="submit" className="btn" disabled={testing || !question.trim()}>
+                {testing ? "Checking…" : "Ask the receptionist"}
+              </button>
+            </form>
 
             {result && (
-              <div className="space-y-3 rounded-md border border-edge bg-ink p-3">
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  {result.answered ? (
-                    <span className="chip bg-emerald-950 text-emerald-300">answered</span>
-                  ) : (
-                    <span className="chip bg-amber-950 text-amber-300">would escalate</span>
-                  )}
-                  <span className="text-muted">
-                    confidence {(result.confidence * 100).toFixed(0)}%
-                  </span>
-                  {result.tier && <Badge value={result.tier} />}
-                  {result.provider && (
-                    <span className="font-mono text-muted">{result.provider}</span>
-                  )}
+              <div className="mt-6 border-t border-border pt-4">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {result.answered ? <Tag value="would answer" tone="tag-green" /> : <Tag value="would escalate" tone="tag-orange" />}
+                  <span className="text-sm text-secondary">Confidence {(result.confidence * 100).toFixed(0)}%</span>
+                  {result.tier && <Tag value={result.tier} />}
+                  {result.provider && <span className="kv text-secondary">{result.provider}</span>}
                 </div>
-
-                <p className="text-sm leading-relaxed text-slate-200">{result.answer}</p>
-
+                <p>{result.answer}</p>
                 {result.sources.length > 0 && (
-                  <div className="text-xs text-muted">
-                    Grounded in: {result.sources.join(", ")}
-                  </div>
+                  <p className="mt-3 text-sm text-secondary">Based on: {result.sources.join(", ")}</p>
                 )}
               </div>
             )}
-          </div>
-        </Panel>
+          </Card>
+        </div>
       </div>
     </div>
   );

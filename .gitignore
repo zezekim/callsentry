@@ -14,8 +14,12 @@ dist/
 build/
 *.log
 .DS_Store
-models/
+/models/
 recordings/
 uploads/
 .venv-verify/
 *.egg-info/
+
+# Claude Code local settings
+.claude/settings.local.json
+dashboard/tsconfig.tsbuildinfo

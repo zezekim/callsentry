@@ -113,7 +113,7 @@ async def test_local_only_blocks_cloud_even_with_keys_present():
 
     ok, reason = registry._configured(_spec(Component.LLM, "claude"))
     assert not ok
-    assert "LOCAL_ONLY" in reason
+    assert "local-only" in reason
 
 
 async def test_local_only_does_not_block_telephony():

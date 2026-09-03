@@ -58,6 +58,18 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     app_logging.configure(settings.log_level)
 
+    # Dashboard-set overrides win over the environment. Applied before the
+    # provider probe so a key stored last week is honoured on this boot.
+    from callsentry.services.platform_settings import load_overrides
+
+    try:
+        async with get_sessionmaker()() as session:
+            applied = await load_overrides(session)
+        if applied:
+            log.info("platform_settings.loaded", count=applied)
+    except Exception as exc:  # noqa: BLE001 - a missing table must not block boot
+        log.warning("platform_settings.unavailable", error=str(exc))
+
     snapshot = await get_registry().snapshot(refresh=True)
     for component, providers in snapshot.items():
         serving = next((p["provider"] for p in providers if p["healthy"]), "none")
